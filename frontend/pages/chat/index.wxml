@@ -1,0 +1,150 @@
+﻿<view class="page-shell" wx:if="{{isLoggedIn}}">
+  <view class="surface-card hero-card chat-hero">
+    <view class="chat-hero__title">消息</view>
+  </view>
+
+  <view class="section-block message-section">
+    <button class="surface-card invitation-toggle {{invitationsExpanded ? 'invitation-toggle--expanded' : ''}}" bindtap="onInvitationToggle">
+      <view class="invitation-toggle__copy">
+        <view class="invitation-toggle__title">活动邀请</view>
+        <view class="invitation-toggle__meta">收到 {{invitationList.length}} · 发出 {{sentInvitationList.length}}</view>
+      </view>
+      <view class="invitation-toggle__count">{{invitationList.length + sentInvitationList.length}}</view>
+      <view class="invitation-toggle__action">{{invitationsExpanded ? '收起' : '展开'}}</view>
+    </button>
+
+    <block wx:if="{{invitationsExpanded}}">
+      <view class="surface-card tabs-card invitation-tabs-card">
+        <view class="tabs-nav">
+          <view class="tabs-nav__item {{activeInvitationTab===0?'tabs-nav__item--active':''}}" data-index="0" bindtap="onInvitationTabTap">收到的邀请</view>
+          <view class="tabs-nav__item {{activeInvitationTab===1?'tabs-nav__item--active':''}}" data-index="1" bindtap="onInvitationTabTap">发出的邀请</view>
+        </view>
+      </view>
+
+      <view class="invitation-list invitation-list--expanded">
+        <block wx:if="{{activeInvitationTab===0}}">
+          <view wx:if="{{invitationList.length}}" class="invitation-list">
+            <view class="surface-card invitation-card" wx:for="{{invitationList}}" wx:key="id">
+              <view class="invitation-card__main" data-post-id="{{item.postId}}" bindtap="onInvitationDetail">
+                <image class="avatar invitation-card__avatar" src="{{item.inviterAvatar}}" mode="aspectFill" />
+                <view class="invitation-card__body">
+                  <view class="title-row">
+                    <view class="title">{{item.inviterName}} 邀请你参加</view>
+                    <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+                  </view>
+                  <view class="invitation-message">“{{item.message}}”</view>
+                  <view class="invitation-post-title">{{item.postTitle}}</view>
+                  <view class="invitation-meta">{{item.timeText}} · {{item.address}} · {{item.countText}}</view>
+                </view>
+              </view>
+              <view class="invitation-actions">
+                <button class="invitation-btn invitation-btn--ghost" data-post-id="{{item.postId}}" catchtap="onInvitationDetail">查看详情</button>
+                <block wx:if="{{item.canRespond}}">
+                  <button class="invitation-btn invitation-btn--reject" data-id="{{item.id}}" catchtap="onInvitationReject" loading="{{invitationActionId === item.id}}">拒绝</button>
+                  <button class="invitation-btn invitation-btn--accept" data-id="{{item.id}}" catchtap="onInvitationAccept" loading="{{invitationActionId === item.id}}">接受</button>
+                </block>
+              </view>
+            </view>
+          </view>
+
+          <view wx:else class="message-inline-empty">
+            暂时没有收到的邀请
+          </view>
+        </block>
+
+        <block wx:else>
+          <view wx:if="{{sentInvitationList.length}}" class="invitation-list">
+            <view class="surface-card invitation-card sent-invitation-card" wx:for="{{sentInvitationList}}" wx:key="id">
+              <view class="invitation-card__main" data-post-id="{{item.postId}}" bindtap="onInvitationDetail">
+                <image class="avatar invitation-card__avatar" src="{{item.inviteeAvatar}}" mode="aspectFill" />
+                <view class="invitation-card__body">
+                  <view class="title-row">
+                    <view class="title">你邀请了 {{item.inviteeName}}</view>
+                    <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+                  </view>
+                  <view class="invitation-message">“{{item.message}}”</view>
+                  <view class="invitation-post-title">{{item.postTitle}}</view>
+                  <view class="invitation-meta">{{item.timeText}} · {{item.address}} · {{item.countText}}</view>
+                  <view class="sent-invitation-progress">{{item.progressText}}{{item.respondedText ? ' · ' + item.respondedText : ''}}</view>
+                </view>
+              </view>
+              <view class="invitation-actions">
+                <button class="invitation-btn invitation-btn--ghost" data-post-id="{{item.postId}}" catchtap="onInvitationDetail">查看详情</button>
+                <button wx:if="{{item.canCancel}}" class="invitation-btn invitation-btn--reject" data-id="{{item.id}}" catchtap="onInvitationCancel" loading="{{invitationActionId === item.id}}">撤回</button>
+              </view>
+            </view>
+          </view>
+
+          <view wx:else class="message-inline-empty">
+            暂时没有发出的邀请
+          </view>
+        </block>
+      </view>
+    </block>
+  </view>
+
+  <view class="surface-card section-block tabs-card">
+    <view class="tabs-nav">
+      <view class="tabs-nav__item {{activeTab===0?'tabs-nav__item--active':''}}" data-index="0" bindtap="onTabTap">我发起的群聊</view>
+      <view class="tabs-nav__item {{activeTab===1?'tabs-nav__item--active':''}}" data-index="1" bindtap="onTabTap">我参加的群聊</view>
+    </view>
+  </view>
+
+  <view class="card-list section-block">
+    <block wx:if="{{activeTab===0}}">
+      <view class="surface-card chat-item" wx:for="{{initiatedList}}" wx:key="id" data-id="{{item.id}}" data-title="{{item.title}}" bindtap="onItemTap">
+        <image class="avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+        <view class="info">
+          <view class="title-row">
+            <view class="title">{{item.title}}</view>
+            <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+          </view>
+          <view class="last-msg">{{item.senderName ? item.senderName + '：' : ''}}{{item.lastMessage}}</view>
+        </view>
+        <view class="time">{{item.lastTime}}</view>
+      </view>
+      <view wx:if="{{!initiatedList.length}}" class="empty-state surface-card">
+        <view class="empty-state__icon">聊</view>
+        <view class="empty-state__title">还没有你发起的群聊</view>
+        <view class="empty-state__desc">你发起活动后，对应群聊会显示在这里。</view>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="surface-card chat-item" wx:for="{{joinedList}}" wx:key="id" data-id="{{item.id}}" data-title="{{item.title}}" bindtap="onItemTap">
+        <image class="avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+        <view class="info">
+          <view class="title-row">
+            <view class="title">{{item.title}}</view>
+            <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+          </view>
+          <view class="last-msg">{{item.senderName ? item.senderName + '：' : ''}}{{item.lastMessage}}</view>
+        </view>
+        <view class="time">{{item.lastTime}}</view>
+      </view>
+      <view wx:if="{{!joinedList.length}}" class="empty-state surface-card">
+        <view class="empty-state__icon">空</view>
+        <view class="empty-state__title">还没有你参加的群聊</view>
+        <view class="empty-state__desc">接受邀请或报名参加活动后，群聊会显示在这里。</view>
+      </view>
+    </block>
+  </view>
+</view>
+
+<view class="page-shell" wx:if="{{!isLoggedIn && !showLoginModal}}">
+  <view class="surface-card empty-state chat-auth-card">
+    <view class="empty-state__icon">登</view>
+    <view class="empty-state__title">登录后查看你的消息</view>
+    <view class="empty-state__desc">登录后可以查看邀请、群聊和活动交流记录。</view>
+    <button class="primary-btn login-entry" bindtap="onLoginTap">去登录 / 注册</button>
+  </view>
+</view>
+
+<login-modal
+  visible="{{showLoginModal}}"
+  title="登录后继续"
+  tip="登录后可以查看你的消息和活动交流记录。"
+  bind:close="onLoginModalClose"
+  bind:wechat="onWechatLogin"
+  bind:password="onPasswordLogin"
+  bind:register="onRegister"
+/>

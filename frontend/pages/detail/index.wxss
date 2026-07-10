@@ -1,0 +1,155 @@
+.detail-page {
+  padding-bottom: calc(220rpx + env(safe-area-inset-bottom));
+}
+
+.detail-page .surface-card {
+  background: #ffffff;
+  border-color: rgba(214, 224, 242, 0.92);
+  box-shadow: 0 16rpx 42rpx rgba(73, 100, 150, 0.08);
+  backdrop-filter: none;
+}
+
+.detail-page .hero-card {
+  background: #ffffff;
+}
+
+.detail-hero {
+  padding: 30rpx;
+}
+
+.detail-hero__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20rpx;
+}
+
+.detail-hero__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-hero__title {
+  font-size: 40rpx;
+  line-height: 1.4;
+  color: #172033;
+  font-weight: 700;
+}
+
+.detail-hero__subtitle {
+  margin-top: 14rpx;
+  font-size: 25rpx;
+  color: #5c6c89;
+}
+
+.detail-hero__meta {
+  display: flex;
+  gap: 12rpx;
+  flex-wrap: wrap;
+  margin-top: 22rpx;
+}
+
+.detail-hero__footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.detail-hero__close-btn {
+  height: 74rpx;
+  padding: 0 26rpx;
+  border-radius: 20rpx;
+  font-size: 25rpx;
+  flex-shrink: 0;
+}
+
+.detail-hero__closed {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #6b7890;
+}
+
+.detail-hero__summary {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.7;
+  color: #35518e;
+}
+
+.detail-section {
+  padding: 28rpx;
+}
+
+.author-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+}
+
+.author-card__avatar {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 50%;
+  background: #e8efff;
+  flex-shrink: 0;
+}
+
+.author-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.author-card__label {
+  font-size: 22rpx;
+  color: #6b7890;
+}
+
+.author-card__name {
+  margin-top: 8rpx;
+  font-size: 30rpx;
+  color: #172033;
+  font-weight: 700;
+}
+
+.author-card__score {
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  color: #6b7890;
+}
+
+.author-card__cta {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  color: #2f5bff;
+  background: rgba(76, 120, 255, 0.1);
+  font-size: 22rpx;
+}
+
+.participant-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.participant-strip__item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 18rpx;
+  background: #f6f8fd;
+}
+
+.participant-strip__avatar {
+  width: 54rpx;
+  height: 54rpx;
+  border-radius: 50%;
+  background: #e8efff;
+}
+
+.participant-strip__name {
+  max-width: 180rpx;
+  font-size: 24rpx;
+  color: #41506d;
+}

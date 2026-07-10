@@ -1,0 +1,61 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/calendar/index",
+    "pages/invite-calendar/index",
+    "pages/chat/index",
+    "pages/profile/index",
+    "pages/post/index",
+    "pages/detail/index",
+    "pages/chat-room/index",
+    "pages/review/index",
+    "pages/settlement/index",
+    "pages/edit/index",
+    "pages/login/index",
+    "pages/register/index",
+    "pages/user-home/index",
+    "pages/credit-explain/index"
+  ],
+  "tabBar": {
+    "color": "#7A869A",
+    "selectedColor": "#2F5BFF",
+    "backgroundColor": "#F8FAFE",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "assets/icons/home.png",
+        "selectedIconPath": "assets/icons/home-active.png"
+      },
+      {
+        "pagePath": "pages/chat/index",
+        "text": "消息",
+        "iconPath": "assets/icons/chat.png",
+        "selectedIconPath": "assets/icons/chat-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "assets/icons/user.png",
+        "selectedIconPath": "assets/icons/user-active.png"
+      }
+    ]
+  },
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#F8FAFE",
+    "navigationBarTitleText": "组个局儿",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F3F6FC"
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于一键获取当前位置并填写活动地点"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ],
+  "sitemapLocation": "sitemap.json"
+}

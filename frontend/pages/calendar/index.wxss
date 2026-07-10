@@ -1,0 +1,215 @@
+.calendar-page {
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
+}
+
+.calendar-search {
+  padding: 28rpx;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(255, 170, 70, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 247, 255, 0.94));
+}
+
+.calendar-search__title {
+  color: #172033;
+  font-size: 38rpx;
+  font-weight: 800;
+}
+
+.calendar-search__desc {
+  margin-top: 10rpx;
+  color: #6b7890;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.calendar-search__row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.calendar-search__input {
+  flex: 1;
+}
+
+.calendar-search__btn {
+  width: 150rpx;
+  height: 92rpx;
+  border-radius: 22rpx;
+  font-size: 28rpx;
+}
+
+.calendar-search__clear {
+  display: inline-flex;
+  margin-top: 18rpx;
+  color: #356dff;
+  font-size: 24rpx;
+}
+
+.calendar-error {
+  margin-top: 24rpx;
+}
+
+.calendar-board {
+  margin-top: 24rpx;
+  padding: 26rpx 18rpx 24rpx;
+}
+
+.calendar-board__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 0 8rpx 18rpx;
+}
+
+.calendar-board__title {
+  color: #172033;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.calendar-board__hint {
+  margin-top: 8rpx;
+  color: #7a869a;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.calendar-board__legend {
+  flex-shrink: 0;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  color: #e16620;
+  background: rgba(255, 128, 64, 0.12);
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.weekday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 12rpx 0;
+  border-top: 1rpx solid rgba(222, 230, 244, 0.86);
+  border-bottom: 1rpx solid rgba(222, 230, 244, 0.86);
+}
+
+.weekday-cell {
+  text-align: center;
+  color: #7a869a;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.calendar-loading {
+  padding: 42rpx 0;
+  color: #6b7890;
+  text-align: center;
+  font-size: 24rpx;
+}
+
+.month-section {
+  margin-top: 24rpx;
+}
+
+.month-section__title {
+  padding: 0 8rpx 14rpx;
+  color: #172033;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10rpx;
+}
+
+.calendar-day {
+  min-height: 112rpx;
+  padding: 10rpx 8rpx;
+  border-radius: 20rpx;
+  background: rgba(246, 249, 255, 0.92);
+  border: 1rpx solid rgba(213, 224, 244, 0.82);
+}
+
+.calendar-day--empty {
+  background: transparent;
+  border-color: transparent;
+}
+
+.calendar-day--selected {
+  color: #ffffff;
+  background: linear-gradient(135deg, #356dff 0%, #5b84ff 100%);
+  border-color: transparent;
+  box-shadow: 0 12rpx 28rpx rgba(53, 109, 255, 0.22);
+}
+
+.calendar-day--highlighted:not(.calendar-day--selected) {
+  background: linear-gradient(135deg, rgba(255, 246, 230, 0.98), rgba(255, 255, 250, 0.94));
+  border-color: rgba(255, 176, 77, 0.52);
+}
+
+.calendar-day__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.calendar-day__number {
+  color: inherit;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.calendar-day--highlighted:not(.calendar-day--selected) .calendar-day__number {
+  color: #df4d22;
+}
+
+.calendar-day__today {
+  min-width: 28rpx;
+  height: 28rpx;
+  border-radius: 999rpx;
+  color: #356dff;
+  background: rgba(53, 109, 255, 0.12);
+  font-size: 18rpx;
+  text-align: center;
+  line-height: 28rpx;
+}
+
+.calendar-day--selected .calendar-day__today {
+  color: #356dff;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.calendar-day__fire {
+  min-height: 30rpx;
+  margin-top: 8rpx;
+  text-align: center;
+  color: #ff7b36;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.calendar-day__count {
+  margin-top: 8rpx;
+  color: #7a869a;
+  font-size: 20rpx;
+  text-align: center;
+}
+
+.calendar-day--selected .calendar-day__count,
+.calendar-day--selected .calendar-day__fire {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.calendar-result {
+  margin-top: 26rpx;
+}
+
+.calendar-result__state {
+  padding-top: 72rpx;
+  padding-bottom: 72rpx;
+}

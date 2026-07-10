@@ -1,0 +1,115 @@
+<view class="page-shell detail-page">
+  <view wx:if="{{loading}}" class="empty-state surface-card">
+    <view class="empty-state__icon">...</view>
+    <view class="empty-state__title">正在加载活动详情</view>
+    <view class="empty-state__desc">请稍候，我们正在整理这场活动的最新信息。</view>
+  </view>
+
+  <block wx:elif="{{post}}">
+    <view class="surface-card hero-card detail-hero">
+      <view class="detail-hero__head">
+        <view class="detail-hero__main">
+          <view class="detail-hero__title">{{post.title}}</view>
+          <view class="detail-hero__subtitle">{{post.subCategory || post.category || '活动'}}</view>
+        </view>
+        <view class="inline-pill inline-pill--{{statusMeta.tone}}">{{statusMeta.text}}</view>
+      </view>
+
+      <view class="detail-hero__footer">
+        <view class="detail-hero__meta">
+          <view class="inline-pill inline-pill--blue">{{post.category || '活动分类'}}</view>
+          <view class="inline-pill inline-pill--cyan" wx:if="{{post.subCategory}}">{{post.subCategory}}</view>
+        </view>
+        <button wx:if="{{isAuthor && post.status === 'open'}}" class="danger-btn detail-hero__close-btn" bindtap="onClosePostTap" style="margin-right: 3rpx;">结束活动</button>
+      </view>
+      <view wx:if="{{closedSummary}}" class="detail-hero__closed">{{closedSummary}}</view>
+      <view wx:if="{{flowSummaryText}}" class="detail-hero__summary">{{flowSummaryText}}</view>
+    </view>
+
+    <view class="surface-card detail-section section-block">
+      <view class="section-head">
+        <view>
+          <view class="section-title">活动信息</view>
+          <view class="section-subtitle">把时间、地点和活动说明先看清楚，再决定要不要报名或继续后续流程。</view>
+        </view>
+      </view>
+
+      <view class="meta-line">
+        <image class="meta-icon" src="/assets/detail/time.svg" mode="aspectFit" />
+        <text>{{timeText}}</text>
+      </view>
+      <view class="meta-line">
+        <image class="meta-icon" src="/assets/detail/location.svg" mode="aspectFit" />
+        <text>{{post.address || '待补充地点'}}</text>
+      </view>
+      <view class="meta-line">
+        <image class="meta-icon" src="/assets/detail/people.svg" mode="aspectFit" />
+        <text>{{post.currentCount}} / {{post.maxCount}} 人</text>
+      </view>
+      <view class="meta-line" wx:if="{{post.description}}">
+        <image class="meta-icon" src="/assets/detail/description.svg" mode="aspectFit" />
+        <text>{{post.description}}</text>
+      </view>
+    </view>
+
+    <view class="surface-card detail-section section-block author-card" bindtap="onAuthorTap">
+      <image class="author-card__avatar" src="{{post.author.avatarUrl}}" mode="aspectFill" />
+      <view class="author-card__info">
+        <view class="author-card__label">发起人</view>
+        <view class="author-card__name">{{post.author.nickName}}</view>
+        <view class="author-card__score">信誉分 {{post.author.creditScore}} · 评分 {{post.author.ratingScoreDisplay}}</view>
+      </view>
+      <view class="author-card__cta">查看主页</view>
+    </view>
+
+    <view class="surface-card detail-section section-block" wx:if="{{participants.length}}">
+      <view class="section-head">
+        <view>
+          <view class="section-title">已报名成员</view>
+          <view class="section-subtitle">这里展示当前已加入这场活动的成员名单。</view>
+        </view>
+      </view>
+      <view class="participant-strip">
+        <view class="participant-strip__item" wx:for="{{participants}}" wx:key="id">
+          <image class="participant-strip__avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+          <text class="participant-strip__name">{{item.nickName}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="page-footer-actions bottom-safe-area">
+      <view class="page-footer-actions__stack" wx:if="{{isAuthor}}">
+        <button wx:if="{{post.status === 'open'}}" class="secondary-btn" bindtap="onEditTap">编辑内容</button>
+        <button wx:if="{{showFlowButton}}" class="primary-btn" bindtap="onFlowTap">{{flowButtonText}}</button>
+        <button wx:if="{{showChatButton}}" class="ghost-btn" bindtap="onChatTap">查看群聊</button>
+      </view>
+
+      <view class="page-footer-actions__stack" wx:else>
+        <button wx:if="{{showFlowButton || showLoginFlowButton}}" class="primary-btn" bindtap="onFlowTap">{{flowButtonText}}</button>
+        <block wx:elif="{{showJoinedBadge}}">
+          <button class="secondary-btn" disabled>已参加</button>
+          <button wx:if="{{showChatButton}}" class="ghost-btn" bindtap="onChatTap">查看群聊</button>
+        </block>
+        <block wx:elif="{{showFullBadge}}">
+          <button class="secondary-btn" disabled>名额已满</button>
+        </block>
+        <block wx:elif="{{showJoinButton}}">
+          <button class="primary-btn" bindtap="onJoinTap">参加活动</button>
+        </block>
+        <block wx:elif="{{showChatButton}}">
+          <button class="ghost-btn" bindtap="onChatTap">查看群聊</button>
+        </block>
+      </view>
+    </view>
+  </block>
+
+  <login-modal
+    visible="{{showLoginModal}}"
+    title="登录后继续"
+    tip="报名、群聊、履约和评分都需要先登录。"
+    bind:close="onLoginModalClose"
+    bind:wechat="onWechatLogin"
+    bind:password="onPasswordLogin"
+    bind:register="onRegister"
+  />
+</view>

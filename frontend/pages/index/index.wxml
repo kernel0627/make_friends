@@ -1,0 +1,127 @@
+<view class="page-shell page-shell--tight">
+  <view class="surface-card hero-card home-hero">
+    <view class="home-hero__row">
+      <view>
+        <view class="home-hero__title">组个局儿</view>
+        <view class="home-hero__desc">从附近和推荐活动里挑一场感兴趣的，轻松发起，也能快速加入。</view>
+      </view>
+      <view class="home-hero__chat" bindtap="onChatTap">
+        <image class="home-hero__chat-icon" src="/assets/icons/chat.png" mode="aspectFit" />
+      </view>
+    </view>
+  </view>
+
+  <view class="surface-card filter-card section-block">
+    <view class="filter-card__row">
+      <view class="input-shell filter-card__input">
+        <input value="{{keyword}}" placeholder="搜索活动、地址或发起人" bindinput="onKeywordInput" bindconfirm="onKeywordConfirm" confirm-type="search" />
+      </view>
+      <button class="ghost-btn filter-card__location" bindtap="onLocationFilterTap">
+        <text class="filter-card__location-text">{{locationButtonText}}</text>
+        <text class="filter-card__arrow">▼</text>
+      </button>
+      <button class="secondary-btn filter-card__btn" bindtap="onKeywordConfirm">搜索</button>
+    </view>
+  </view>
+
+  <view class="surface-card calendar-entry section-block" bindtap="onCalendarTap" hover-class="calendar-entry--hover">
+    <view class="calendar-entry__main">
+      <view class="calendar-entry__eyebrow">日历找活动</view>
+      <view class="calendar-entry__title">按日期看看哪天更适合参加</view>
+      <view class="calendar-entry__desc">输入活动、地点或时间段，火焰越旺说明当天更值得点进去看看。</view>
+    </view>
+    <view class="calendar-entry__action">打开</view>
+  </view>
+
+  <view class="section-block">
+    <category-tabs categories="{{categories}}" activeCategory="{{activeCategory}}" subCategories="{{subCategories}}" activeSubCategory="{{activeSubCategory}}" bind:categorychange="onCategoryChange" bind:subcategorychange="onSubCategoryChange" />
+  </view>
+
+  <view class="section-block">
+    <sort-bar sortBy="{{sortBy}}" bind:sortchange="onSortChange" />
+  </view>
+
+  <view class="section-block">
+    <view wx:if="{{loading && !posts.length}}" class="empty-state surface-card">
+      <view class="empty-state__icon">...</view>
+      <view class="empty-state__title">正在加载活动列表</view>
+      <view class="empty-state__desc">我们正在为你整理合适的活动，请稍候。</view>
+    </view>
+    <view wx:elif="{{errorText && !posts.length}}" class="empty-state surface-card">
+      <view class="empty-state__icon">!</view>
+      <view class="empty-state__title">加载失败</view>
+      <view class="empty-state__desc">{{errorText}}</view>
+    </view>
+    <view wx:elif="{{posts.length}}" class="card-list">
+      <post-card wx:for="{{posts}}" wx:key="id" post="{{item}}" bind:cardtap="onPostCardTap" />
+      <view class="list-footer muted">
+        <text wx:if="{{loadingMore}}">正在加载更多活动...</text>
+        <text wx:elif="{{hasMore}}">继续下拉，看看更多活动</text>
+        <text wx:else>已经到底啦</text>
+      </view>
+    </view>
+    <view wx:else class="empty-state surface-card">
+      <view class="empty-state__icon">空</view>
+      <view class="empty-state__title">还没有找到匹配的活动</view>
+      <view class="empty-state__desc">换个关键词、分类或地点试试看，也可以自己发起一场。</view>
+    </view>
+  </view>
+
+  <button class="home-create-btn" bindtap="onCreatePost">
+    <text class="home-create-btn__plus">+</text>
+  </button>
+</view>
+
+<block wx:if="{{showLocationSheet}}">
+  <view class="sheet-mask" bindtap="onLocationSheetClose"></view>
+  <view class="sheet-panel surface-card">
+    <view class="sheet-panel__title">地点筛选</view>
+    <view class="sheet-panel__subtitle">你可以保留定位入口占位，也可以直接手写输入地点关键词，或清空当前筛选。</view>
+    <view class="sheet-panel__actions">
+      <button class="primary-btn sheet-panel__btn" bindtap="onUseCurrentLocation" loading="{{locating}}" disabled="{{locating}}">
+        {{locating ? '定位中' : '定位取地址'}}
+      </button>
+      <button class="secondary-btn sheet-panel__btn" bindtap="onManualLocationTap">手写输入</button>
+      <button class="ghost-btn sheet-panel__btn" bindtap="onClearLocationFilter">清空筛选</button>
+    </view>
+  </view>
+</block>
+
+<block wx:if="{{showManualLocationDialog}}">
+  <view class="sheet-mask" bindtap="onManualLocationCancel"></view>
+  <view class="manual-location-card surface-card">
+    <view class="section-title">手写地点</view>
+    <view class="section-subtitle">输入一个地点关键词，例如商圈、学校、地铁站或体育场名称。</view>
+    <view class="manual-location-card__search">
+      <input
+        class="manual-location-card__field"
+        value="{{manualLocationText}}"
+        placeholder="输入地点关键词，如北京邮电"
+        bindinput="onManualLocationInput"
+        confirm-type="done"
+        bindconfirm="onManualLocationConfirm"
+      />
+      <view wx:if="{{manualLocationSearching}}" class="location-suggest-hint">正在搜索地点...</view>
+      <view wx:elif="{{manualLocationSuggestions.length}}" class="location-suggestion-list">
+        <view
+          class="location-suggestion-item"
+          wx:for="{{manualLocationSuggestions}}"
+          wx:key="id"
+          data-index="{{index}}"
+          bindtap="onManualLocationSuggestionTap"
+        >
+          <view class="location-suggestion-marker">地点</view>
+          <view class="location-suggestion-content">
+            <view class="location-suggestion-title">{{item.title}}</view>
+            <view class="location-suggestion-address">{{item.displayAddress || item.address || '暂无详细地址'}}</view>
+          </view>
+        </view>
+      </view>
+      <view wx:elif="{{manualLocationSearchError}}" class="location-suggest-hint location-suggest-hint--error">{{manualLocationSearchError}}</view>
+    </view>
+    <view class="manual-location-card__actions">
+      <button class="ghost-btn" bindtap="onManualLocationCancel">取消</button>
+      <button class="primary-btn" bindtap="onManualLocationConfirm">应用筛选</button>
+    </view>
+  </view>
+</block>

@@ -1,0 +1,32 @@
+<view class="tabs-shell surface-card">
+  <scroll-view class="tabs-main" scroll-x enable-flex show-scrollbar="false">
+    <view
+      wx:for="{{categories}}"
+      wx:key="*this"
+      class="tab-chip {{item === activeCategory ? 'tab-chip--active' : ''}}"
+      data-category="{{item}}"
+      bindtap="onCategoryTap"
+    >
+      {{item}}
+    </view>
+  </scroll-view>
+
+  <scroll-view wx:if="{{subCategories.length}}" class="tabs-sub" scroll-x enable-flex show-scrollbar="false">
+    <view
+      class="sub-chip {{!activeSubCategory ? 'sub-chip--active' : ''}}"
+      data-sub-category=""
+      bindtap="onSubCategoryTap"
+    >
+      全部类型
+    </view>
+    <view
+      wx:for="{{subCategories}}"
+      wx:key="*this"
+      class="sub-chip {{item === activeSubCategory ? 'sub-chip--active' : ''}}"
+      data-sub-category="{{item}}"
+      bindtap="onSubCategoryTap"
+    >
+      {{item}}
+    </view>
+  </scroll-view>
+</view>

@@ -1,0 +1,27 @@
+.auth-required {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 58vh;
+  padding: 80rpx 40rpx;
+  text-align: center;
+}
+
+.auth-required__title {
+  font-size: 32rpx;
+  color: #333;
+  margin-bottom: 30rpx;
+}
+
+.auth-required__btn {
+  width: 620rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  border: none;
+  border-radius: 12rpx;
+  text-align: center;
+  font-size: 30rpx;
+  background: #07c160;
+  color: #fff;
+}

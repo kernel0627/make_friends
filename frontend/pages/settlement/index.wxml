@@ -1,0 +1,195 @@
+<view class="page-shell settlement-page" wx:if="{{isLoggedIn}}">
+  <view class="surface-card hero-card settlement-hero">
+    <view class="settlement-hero__top">
+      <view class="settlement-hero__content">
+        <view class="section-title">{{postTitle}}</view>
+        <view class="section-subtitle">
+          {{viewerIsAuthor ? '请先处理成员履约结果，处理完成后再进入评分流程。' : '请先确认你在这场活动中的履约情况，确认完成后再进入下一步。'}}
+        </view>
+      </view>
+      <view class="settlement-flow-badge" wx:if="{{flowLabelLines.length}}">
+        <text class="settlement-flow-badge__line" wx:for="{{flowLabelLines}}" wx:key="index">{{item}}</text>
+      </view>
+    </view>
+    <view class="settlement-hero__meta" wx:if="{{reviewDeadlineText}}">评分截止：{{reviewDeadlineText}}</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty-state surface-card section-block">
+    <view class="empty-state__icon">...</view>
+    <view class="empty-state__title">正在加载履约信息</view>
+    <view class="empty-state__desc">请稍等，我们正在同步活动当前的履约状态。</view>
+  </view>
+
+  <block wx:elif="{{projectCancelled}}">
+    <view class="surface-card section-block state-card">
+      <view class="section-title">活动已取消</view>
+      <view class="section-subtitle">整场活动已被取消，本次流程已经结束，不再继续履约或评分。</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{stage === 'settlement'}}">
+    <block wx:if="{{viewerIsAuthor}}">
+      <view class="surface-card section-block state-card">
+        <view class="section-title">待处理成员</view>
+        <view class="section-subtitle">点击成员卡片后，在底部操作区确认 Ta 的履约结果。处理完成的成员会立即从列表中移除。</view>
+      </view>
+
+        <view wx:if="{{items.length}}" class="selection-toolbar">
+          <view class="selection-toolbar__meta">已选择 {{selectionCount}} / {{items.length}} 位成员</view>
+          <view class="selection-toolbar__actions">
+            <button class="selection-toolbar__btn" bindtap="onSelectAllTap" disabled="{{submitting}}">全选</button>
+            <button class="selection-toolbar__btn" bindtap="onClearSelectionTap" disabled="{{submitting}}">清空</button>
+          </view>
+        </view>
+      <view wx:if="{{items.length}}" class="card-list section-block">
+        <view
+          class="surface-card member-card {{item.selected ? 'member-card--active' : ''}}"
+          wx:for="{{items}}"
+          wx:key="index"
+          data-user-id="{{item.user.id}}"
+          bindtap="onAuthorCardTap"
+        >
+          <image class="member-card__avatar" src="{{item.user.avatarUrl}}" mode="aspectFill" />
+          <view class="member-card__info">
+            <view class="member-card__name">{{item.user.nickName}}</view>
+            <view class="member-card__status">{{item.statusText}}</view>
+            <view wx:if="{{item.participantConfirmedText}}" class="member-card__time">成员确认：{{item.participantConfirmedText}}</view>
+          </view>
+          <view class="inline-pill {{item.selected ? 'inline-pill--blue' : 'inline-pill--gray'}}">
+            {{item.selected ? '已选中' : '点选'}}
+          </view>
+        </view>
+      </view>
+
+      <view wx:else class="empty-state surface-card section-block">
+        <view class="empty-state__icon">✓</view>
+        <view class="empty-state__title">当前没有待处理成员</view>
+        <view class="empty-state__desc">发起人已处理完全部成员，系统会根据剩余待评分对象自动进入下一步或结束流程。</view>
+      </view>
+
+      <view wx:if="{{selectionCount}}" class="surface-card section-block note-card">
+        <view class="section-title">{{selectedSummary}}</view>
+        <view class="section-subtitle">{{selectedHint}}</view>
+        <textarea
+          class="note-card__input"
+          value="{{noteText}}"
+          placeholder="可以补充备注，例如迟到、提前离场、临时情况等（选填）"
+          maxlength="120"
+          cursor-spacing="160"
+          bindinput="onNoteInput"
+        />
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="surface-card section-block state-card">
+        <view class="section-title">履约确认</view>
+        <view class="section-subtitle">请确认你在这场活动中的实际情况，确认后系统会自动决定是否进入评分。</view>
+      </view>
+
+      <view wx:if="{{currentItem}}" class="surface-card section-block note-card">
+        <view class="member-inline">
+          <image class="member-card__avatar" src="{{currentItem.user.avatarUrl}}" mode="aspectFill" />
+          <view class="member-card__info">
+            <view class="member-card__name">{{currentItem.user.nickName}}</view>
+            <view class="member-card__status">{{currentItem.statusText}}</view>
+          </view>
+        </view>
+        <textarea
+          class="note-card__input"
+          value="{{noteText}}"
+          placeholder="如果有特殊情况，可以补充说明（选填）"
+          maxlength="120"
+          cursor-spacing="160"
+          bindinput="onNoteInput"
+        />
+      </view>
+    </block>
+  </block>
+
+  <block wx:elif="{{stage === 'review'}}">
+    <view class="surface-card section-block state-card">
+      <view class="section-title">进入评分</view>
+      <view class="section-subtitle">履约确认已经完成，接下来请为本次活动相关成员进行评分。</view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="surface-card section-block state-card">
+      <view class="section-title">流程已完成</view>
+      <view class="section-subtitle">当前活动的履约和评分流程都已经结束，你可以返回“我的”查看最终结果。</view>
+    </view>
+  </block>
+
+  <cover-view class="page-footer-actions settlement-action-zone bottom-safe-area" wx:if="{{!loading && !showDecisionSheet && !showCancelAllModal}}">
+    <cover-view class="page-footer-actions__stack settlement-action-stack">
+      <cover-view
+        wx:if="{{viewerIsAuthor && stage === 'settlement' && canCancelAll}}"
+        class="settlement-cover-btn settlement-cover-btn--danger {{submitting ? 'settlement-cover-btn--disabled' : ''}}"
+        catchtap="onCancelAllTap"
+      >
+        取消整个项目
+      </cover-view>
+      <cover-view
+        wx:if="{{stage === 'settlement' && ((viewerIsAuthor && selectionCount) || (!viewerIsAuthor && currentItem))}}"
+        class="settlement-cover-btn settlement-cover-btn--primary {{submitting ? 'settlement-cover-btn--disabled' : ''}}"
+        catchtap="onPrimaryActionTap"
+      >
+        {{submitting ? '处理中...' : (viewerIsAuthor ? primaryActionText : '提交履约确认')}}
+      </cover-view>
+      <cover-view wx:elif="{{stage === 'review'}}" class="settlement-cover-btn settlement-cover-btn--primary" catchtap="onPrimaryActionTap">去评分</cover-view>
+      <cover-view wx:else class="settlement-cover-btn settlement-cover-btn--ghost" catchtap="onBackProfileTap">返回我的</cover-view>
+    </cover-view>
+  </cover-view>
+
+  <login-modal
+    visible="{{showLoginModal}}"
+    title="请先登录后再继续"
+    tip="登录后才能处理履约和评分流程。"
+    bind:close="onLoginModalClose"
+    bind:wechat="onWechatLogin"
+    bind:password="onPasswordLogin"
+    bind:register="onRegister"
+  />
+
+  <block wx:if="{{showDecisionSheet}}">
+    <view class="sheet-mask" bindtap="onDecisionSheetClose"></view>
+    <view class="sheet-panel surface-card">
+      <view class="sheet-panel__title">{{decisionTitle}}</view>
+      <view class="sheet-panel__subtitle">{{viewerIsAuthor ? '请确认当前选择，提交后会留在本页刷新履约进度。' : '请确认当前选择，提交后系统会刷新履约进度并自动进入下一步。'}}</view>
+      <view class="sheet-panel__actions">
+        <button
+          wx:for="{{decisionOptions}}"
+          wx:key="key"
+          class="{{item.tone === 'primary' ? 'primary-btn' : item.tone === 'warn' ? 'danger-btn' : 'secondary-btn'}} sheet-panel__btn"
+          data-decision="{{item.key}}"
+          bindtap="onDecisionOptionTap"
+          loading="{{submitting}}"
+          disabled="{{submitting}}"
+        >
+          {{item.label}}
+        </button>
+        <button class="ghost-btn sheet-panel__btn" bindtap="onDecisionSheetClose">暂不处理</button>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{showCancelAllModal}}">
+    <view class="sheet-mask" bindtap="onCancelAllClose"></view>
+    <view class="confirm-card surface-card">
+      <view class="section-title">确认取消整个项目？</view>
+      <view class="section-subtitle">取消后将直接结束本次活动流程，不再继续逐个确认或评分，请谨慎操作。</view>
+      <view class="confirm-card__actions">
+        <button class="ghost-btn" bindtap="onCancelAllClose">继续保留</button>
+        <button class="danger-btn" bindtap="onCancelAllConfirm" loading="{{submitting}}" disabled="{{submitting}}">确认取消</button>
+      </view>
+    </view>
+  </block>
+</view>
+
+<auth-required
+  wx:if="{{!isLoggedIn && !showLoginModal}}"
+  title="登录后查看履约流程"
+  buttonText="去登录"
+  bind:login="onLoginTap"
+/>

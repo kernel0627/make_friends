@@ -1,0 +1,17 @@
+<block wx:if="{{visible}}">
+  <view class="login-modal__mask" bindtap="onMaskTap"></view>
+  <view class="login-modal__dialog surface-card">
+    <view class="login-modal__header">
+      <view>
+        <view class="login-modal__title">{{title}}</view>
+        <view class="login-modal__tip">{{tip}}</view>
+      </view>
+      <view class="login-modal__close" bindtap="onCloseTap">×</view>
+    </view>
+    <view class="login-modal__body">
+      <button class="primary-btn login-modal__btn" bindtap="onWechatTap">微信一键登录</button>
+      <button class="ghost-btn login-modal__btn" bindtap="onPasswordTap">账号登录</button>
+      <button class="ghost-btn login-modal__btn" bindtap="onRegisterTap">注册账号</button>
+    </view>
+  </view>
+</block>

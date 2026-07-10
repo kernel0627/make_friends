@@ -1,0 +1,53 @@
+<view class="page-shell" wx:if="{{isLoggedIn}}">
+  <view class="surface-card hero-card credit-hero">
+    <view class="section-title">信誉分说明</view>
+    <view class="section-subtitle">信誉分和评价分分别反映履约记录与互评结果，这里展示的全部数值都直接来自后端回算。</view>
+
+    <view class="credit-hero__score-grid">
+      <view class="credit-hero__score-item">
+        <text class="credit-hero__score-num">{{creditScore}}</text>
+        <text class="credit-hero__score-label">当前信誉分</text>
+      </view>
+      <view class="credit-hero__score-item">
+        <text class="credit-hero__score-num">{{ratingScore}}</text>
+        <text class="credit-hero__score-label">当前评价分</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="surface-card section-block credit-section">
+    <view class="section-title">规则说明</view>
+    <view class="rule-item" wx:for="{{rules}}" wx:key="*this">{{index + 1}}. {{item}}</view>
+  </view>
+
+  <view class="surface-card section-block credit-section">
+    <view class="section-title">最近信誉流水</view>
+    <block wx:if="{{ledgerItems.length}}">
+      <view class="ledger-item" wx:for="{{ledgerItems}}" wx:key="createdAt">
+        <view class="ledger-main">
+          <view class="ledger-title">{{item.postTitle || '系统记录'}}</view>
+          <view class="ledger-note">{{item.note || item.sourceType}}</view>
+          <view class="ledger-time">{{item.timeText}}</view>
+        </view>
+        <view class="ledger-delta {{item.delta >= 0 ? 'ledger-delta--up' : 'ledger-delta--down'}}">{{item.deltaText}}</view>
+      </view>
+    </block>
+    <view wx:else class="empty-state">
+      <view class="empty-state__icon">记</view>
+      <view class="empty-state__title">暂时还没有信誉流水</view>
+      <view class="empty-state__desc">当你完成活动、评分或发生取消时，这里会同步记录对应变化。</view>
+    </view>
+  </view>
+</view>
+
+<auth-required wx:if="{{!isLoggedIn && !showLoginModal}}" title="登录后才能查看信誉分说明" buttonText="立即登录" bind:login="onLoginTap" />
+
+<login-modal
+  visible="{{showLoginModal}}"
+  title="请先登录"
+  tip="登录后才能查看你的信誉分和信用流水。"
+  bind:close="onLoginModalClose"
+  bind:wechat="onWechatLogin"
+  bind:password="onPasswordLogin"
+  bind:register="onRegister"
+/>

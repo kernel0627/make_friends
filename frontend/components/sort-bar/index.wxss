@@ -1,0 +1,23 @@
+.sort-shell {
+  display: flex;
+  gap: 12rpx;
+  padding: 12rpx;
+}
+
+.sort-item {
+  flex: 1;
+  height: 72rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25rpx;
+  color: #53627e;
+  background: rgba(118, 137, 173, 0.08);
+}
+
+.sort-item--active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #356dff 0%, #5b84ff 100%);
+  box-shadow: 0 10rpx 22rpx rgba(53, 109, 255, 0.18);
+}

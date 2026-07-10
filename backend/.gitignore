@@ -1,0 +1,25 @@
+# Backend-local runtime and cache files (root .gitignore is authoritative)
+.gocache/
+.gomodcache/
+data/
+logs/
+.server.pid
+__pycache__/
+*.pyc
+backend-server
+backend-server.exe
+server.log
+server.err
+server.out
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+*.err
+*.out
+*.pid
+*.test
+coverage.out

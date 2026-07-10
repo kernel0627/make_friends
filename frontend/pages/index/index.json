@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "组个局儿",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "post-card": "/components/post-card/index",
+    "category-tabs": "/components/category-tabs/index",
+    "sort-bar": "/components/sort-bar/index"
+  }
+}

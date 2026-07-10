@@ -1,0 +1,79 @@
+<view class="page-shell" wx:if="{{user}}">
+  <view class="surface-card hero-card user-home-hero">
+    <image class="user-home-hero__avatar" src="{{user.avatarUrl}}" mode="aspectFill" />
+    <view class="user-home-hero__name">{{user.nickName}}</view>
+    <view class="user-home-hero__desc">这里展示 Ta 发起和参加过的活动，以及当前的信誉分和评分结果。</view>
+
+    <view class="profile-tags user-home-hero__tags" wx:if="{{interestTags.length}}">
+      <view class="inline-pill inline-pill--blue" wx:for="{{interestTags}}" wx:key="index">{{item.value || item}}</view>
+    </view>
+
+    <view class="profile-stats user-home-hero__stats">
+      <view class="profile-stat">
+        <view class="profile-stat__num">{{initiatedCount}}</view>
+        <view class="profile-stat__label">发起活动</view>
+      </view>
+      <view class="profile-stat">
+        <view class="profile-stat__num">{{joinedCount}}</view>
+        <view class="profile-stat__label">参加活动</view>
+      </view>
+      <view class="profile-stat">
+        <view class="profile-stat__num">{{creditScoreDisplay}}</view>
+        <view class="profile-stat__label">信誉分</view>
+      </view>
+      <view class="profile-stat">
+        <view class="profile-stat__num">{{ratingScoreDisplay}}</view>
+        <view class="profile-stat__label">评价分</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="surface-card section-block tabs-card">
+    <view class="tabs-nav">
+      <view class="tabs-nav__item {{activeTab===0 ? 'tabs-nav__item--active' : ''}}" data-index="0" bindtap="onTabTap">Ta 发起的</view>
+      <view class="tabs-nav__item {{activeTab===1 ? 'tabs-nav__item--active' : ''}}" data-index="1" bindtap="onTabTap">Ta 参加的</view>
+    </view>
+  </view>
+
+  <view class="card-list section-block" wx:if="{{activeTab===0}}">
+    <view class="surface-card project-card" wx:for="{{initiatedPosts}}" wx:key="id" data-id="{{item.id}}" bindtap="onPostTap">
+      <view class="project-card__head">
+        <view class="project-card__title">{{item.title}}</view>
+        <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+      </view>
+      <view class="project-card__time">{{item.timeText}}</view>
+      <view class="project-card__score" wx:if="{{item.scoreText}}">{{item.scoreText}}</view>
+      <view class="project-card__preview" wx:if="{{item.previewText}}">{{item.previewText}}</view>
+    </view>
+    <view wx:if="{{!initiatedPosts.length}}" class="empty-state surface-card">
+      <view class="empty-state__icon">空</view>
+      <view class="empty-state__title">Ta 还没有发起过活动</view>
+      <view class="empty-state__desc">等 Ta 发布新的活动后，这里就会展示出来。</view>
+    </view>
+  </view>
+
+  <view class="card-list section-block" wx:if="{{activeTab===1}}">
+    <view class="surface-card project-card" wx:for="{{joinedPosts}}" wx:key="id" data-id="{{item.id}}" bindtap="onPostTap">
+      <view class="project-card__head">
+        <view class="project-card__title">{{item.title}}</view>
+        <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+      </view>
+      <view class="project-card__time">{{item.timeText}}</view>
+      <view class="project-card__score" wx:if="{{item.scoreText}}">{{item.scoreText}}</view>
+      <view class="project-card__preview" wx:if="{{item.previewText}}">{{item.previewText}}</view>
+    </view>
+    <view wx:if="{{!joinedPosts.length}}" class="empty-state surface-card">
+      <view class="empty-state__icon">空</view>
+      <view class="empty-state__title">Ta 还没有参加过活动</view>
+      <view class="empty-state__desc">等 Ta 加入活动后，这里会同步展示记录。</view>
+    </view>
+  </view>
+</view>
+
+<view wx:elif="{{loading}}" class="page-shell">
+  <view class="empty-state surface-card">
+    <view class="empty-state__icon">...</view>
+    <view class="empty-state__title">正在加载用户主页</view>
+    <view class="empty-state__desc">请稍候，我们正在整理 Ta 的活动记录。</view>
+  </view>
+</view>

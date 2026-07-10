@@ -1,0 +1,302 @@
+<view class="page-wrapper" wx:if="{{isLoggedIn}}">
+  <scroll-view scroll-y class="page">
+    <view class="section smart-section">
+      <view class="smart-header">
+        <view>
+          <view class="smart-title">智能发布</view>
+          <view class="smart-subtitle">一句话生成活动草稿，会参考你的历史习惯，生成后仍需你确认发布。</view>
+        </view>
+      </view>
+      <view class="smart-input-row">
+        <input
+          class="smart-input"
+          value="{{smartInput}}"
+          placeholder="例如：明天羽毛球 / 后天早9点羽毛球 / 桌游"
+          bindinput="onSmartInput"
+          confirm-type="done"
+          bindconfirm="onSmartGenerate"
+        />
+        <button class="smart-generate-btn" bindtap="onSmartGenerate" loading="{{smartGenerating}}" disabled="{{smartGenerating}}">
+          {{smartGenerating ? '生成中' : '生成'}}
+        </button>
+      </view>
+      <view wx:if="{{smartDraftSummary.length}}" class="smart-summary">
+        <view class="smart-summary__title">已应用到下方表单</view>
+        <view class="smart-summary__item" wx:for="{{smartDraftSummary}}" wx:key="*this">{{item}}</view>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动标题</view>
+      <input class="field-input {{errors.title ? 'error' : ''}}" value="{{title}}" placeholder="输入一个清晰的活动标题" bindinput="onTitleInput" />
+      <view wx:if="{{errors.title}}" class="error-tip">{{errors.title}}</view>
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动描述</view>
+      <textarea class="field-textarea" value="{{description}}" placeholder="简单介绍活动内容、要求和注意事项" bindinput="onDescriptionInput" maxlength="500" />
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动分类</view>
+      <view class="picker-cell {{errors.category ? 'error' : ''}}" bindtap="onCategoryClick">
+        <text class="picker-value">{{category || '请选择活动分类'}}</text>
+        <text class="picker-arrow">></text>
+      </view>
+      <view wx:if="{{errors.category}}" class="error-tip">{{errors.category}}</view>
+    </view>
+
+    <view class="section" wx:if="{{category}}">
+      <view class="field-label">细分标签</view>
+      <block wx:if="{{showTagManualInput}}">
+        <input class="field-input {{errors.subCategory ? 'error' : ''}}" value="{{subCategory}}" placeholder="请输入细分标签" bindinput="onTagManualInput" />
+      </block>
+      <block wx:else>
+        <view class="picker-cell {{errors.subCategory ? 'error' : ''}}" bindtap="onTagClick">
+          <text class="picker-value">{{subCategory || '请选择细分标签'}}</text>
+          <text class="picker-arrow">></text>
+        </view>
+      </block>
+      <view wx:if="{{errors.subCategory}}" class="error-tip">{{errors.subCategory}}</view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">活动时间</view>
+      <radio-group class="radio-group" bindchange="onTimeModeChange">
+        <label class="radio-item"><radio value="range" checked="{{timeMode === 'range'}}" /><text>最近几天内</text></label>
+        <label class="radio-item"><radio value="fixed" checked="{{timeMode === 'fixed'}}" /><text>固定时间</text></label>
+      </radio-group>
+      <block wx:if="{{timeMode === 'range'}}">
+        <view class="stepper-row">
+          <text class="stepper-label">天数</text>
+          <input class="stepper-input" type="number" value="{{timeRange}}" bindinput="onTimeRangeInput" />
+          <text class="stepper-unit">天</text>
+        </view>
+        <view wx:if="{{errors.timeRange}}" class="error-tip">{{errors.timeRange}}</view>
+      </block>
+      <block wx:if="{{timeMode === 'fixed'}}">
+        <view class="picker-cell {{errors.fixedTime ? 'error' : ''}}" bindtap="onFixedTimeClick">
+          <text class="picker-value">{{fixedTimeDisplay || '请选择活动时间'}}</text>
+          <text class="picker-arrow">></text>
+        </view>
+        <view wx:if="{{errors.fixedTime}}" class="error-tip">{{errors.fixedTime}}</view>
+      </block>
+    </view>
+
+    <view class="section">
+      <view class="section-title">活动地点</view>
+      <radio-group class="radio-group" bindchange="onLocationModeChange">
+        <label class="radio-item"><radio value="current" checked="{{locationMode === 'current'}}" /><text>当前位置</text></label>
+        <label class="radio-item"><radio value="manual" checked="{{locationMode === 'manual'}}" /><text>手动输入</text></label>
+      </radio-group>
+      <block wx:if="{{locationMode === 'current'}}">
+        <view class="location-row">
+          <text class="location-text">{{locationText || '还没有获取位置'}}</text>
+          <button class="btn-small" bindtap="onGetCurrentLocation" loading="{{locating}}" disabled="{{locating}}">
+            {{locating ? '定位中' : (locationText ? '重新获取' : '获取位置')}}
+          </button>
+        </view>
+      </block>
+      <block wx:if="{{locationMode === 'manual'}}">
+        <view class="location-search-box">
+          <input class="field-input {{errors.locationText ? 'error' : ''}}" value="{{locationText}}" placeholder="请输入活动地点，如北京邮电" bindinput="onLocationInput" />
+          <view wx:if="{{locationSearching}}" class="location-suggest-hint">正在搜索地点...</view>
+          <view wx:elif="{{locationSuggestions.length}}" class="location-suggestion-list">
+            <view
+              class="location-suggestion-item"
+              wx:for="{{locationSuggestions}}"
+              wx:key="id"
+              data-index="{{index}}"
+              bindtap="onLocationSuggestionTap"
+            >
+              <view class="location-suggestion-marker">地点</view>
+              <view class="location-suggestion-content">
+                <view class="location-suggestion-title">{{item.title}}</view>
+                <view class="location-suggestion-address">{{item.displayAddress || item.address || '暂无详细地址'}}</view>
+              </view>
+            </view>
+          </view>
+          <view wx:elif="{{locationSearchError}}" class="location-suggest-hint location-suggest-hint--error">{{locationSearchError}}</view>
+        </view>
+      </block>
+      <view wx:if="{{errors.locationText}}" class="error-tip">{{errors.locationText}}</view>
+    </view>
+
+    <view class="section">
+      <view class="stepper-row">
+        <text class="stepper-label">人数上限</text>
+        <input class="stepper-input" type="number" value="{{maxCount}}" bindinput="onMaxCountInput" />
+        <text class="stepper-unit">人</text>
+      </view>
+      <view wx:if="{{errors.maxCount}}" class="error-tip">{{errors.maxCount}}</view>
+    </view>
+
+    <view class="section invite-section">
+      <view class="section-title">邀请成员</view>
+      <view class="invite-calendar-card" bindtap="onInviteCalendarOpen">
+        <view class="invite-calendar-icon">日历</view>
+        <view class="invite-calendar-copy">
+          <view class="invite-calendar-title">按日历找人</view>
+          <view class="invite-calendar-desc">根据时间、地点和活动偏好推荐更合适的候选人。</view>
+        </view>
+        <view class="invite-calendar-arrow">></view>
+      </view>
+      <view class="invite-summary">
+        <view class="invite-summary__copy">
+          <view wx:if="{{selectedInvitees.length}}" class="invite-summary__title">已选择 {{selectedInvitees.length}} 人</view>
+          <view wx:else class="invite-summary__title">还没有选择邀请对象</view>
+          <view class="invite-summary__desc">发布成功后，邀请会出现在对方的消息页。</view>
+        </view>
+        <button class="btn-small invite-open-btn" bindtap="onInviteOpen">邀请</button>
+      </view>
+      <view wx:if="{{selectedInvitees.length}}" class="invite-chip-list">
+        <view class="invite-chip" wx:for="{{selectedInvitees}}" wx:key="id">
+          <image class="invite-chip__avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+          <text class="invite-chip__name">{{item.nickName}}</text>
+          <text class="invite-chip__remove" data-id="{{item.id}}" catchtap="onInviteRemove">×</text>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="submit-wrap">
+    <button class="btn-primary" bindtap="onSubmit" loading="{{submitting}}">发布活动</button>
+  </view>
+</view>
+
+<view class="page-shell" wx:if="{{!isLoggedIn && !showLoginModal}}">
+  <view class="surface-card empty-state post-auth-card">
+    <view class="empty-state__icon">发</view>
+    <view class="empty-state__title">登录后发布活动</view>
+    <view class="empty-state__desc">登录后就能发起活动、设置时间地点，并邀请大家一起参与。</view>
+    <button class="primary-btn login-entry" bindtap="onLoginTap">去登录 / 注册</button>
+  </view>
+</view>
+
+<login-modal
+  visible="{{showLoginModal}}"
+  title="登录后继续发布"
+  tip="登录后就能继续填写活动内容、设置时间地点并完成发布。"
+  bind:close="onLoginModalClose"
+  bind:wechat="onWechatLogin"
+  bind:password="onPasswordLogin"
+  bind:register="onRegister"
+/>
+
+<block wx:if="{{showCategoryModal}}">
+  <view class="modal-mask" bindtap="onCategoryModalClose"></view>
+  <view class="modal-dialog">
+    <view class="modal-header">
+      <text class="modal-title">选择活动分类</text>
+      <text class="modal-close" bindtap="onCategoryModalClose">×</text>
+    </view>
+    <view class="modal-body">
+      <view class="modal-item" wx:for="{{categoryArray}}" wx:key="*this" data-index="{{index}}" bindtap="onCategorySelect">
+        <text class="modal-item__name">{{item}}</text>
+      </view>
+    </view>
+  </view>
+</block>
+
+<block wx:if="{{showTagModal}}">
+  <view class="modal-mask" bindtap="onTagModalClose"></view>
+  <view class="modal-dialog">
+    <view class="modal-header">
+      <text class="modal-title">选择细分标签</text>
+      <text class="modal-close" bindtap="onTagModalClose">×</text>
+    </view>
+    <view class="modal-body">
+      <view class="modal-item" wx:for="{{tagOptions}}" wx:key="*this" data-index="{{index}}" bindtap="onTagSelect">
+        <text class="modal-item__name">{{item}}</text>
+      </view>
+    </view>
+  </view>
+</block>
+
+<block wx:if="{{showDateModal}}">
+  <view class="modal-mask" bindtap="onDateModalClose"></view>
+  <view class="modal-dialog">
+    <view class="modal-header">
+      <text class="modal-title">选择活动时间</text>
+      <text class="modal-close" bindtap="onDateModalClose">×</text>
+    </view>
+    <view class="modal-body">
+      <picker mode="date" value="{{selectedDate}}" bindchange="onDateChange">
+        <view class="date-picker-cell">
+          <text class="date-picker-value">{{selectedDate || '请选择日期'}}</text>
+        </view>
+      </picker>
+      <picker mode="time" value="{{selectedClock}}" bindchange="onClockChange">
+        <view class="date-picker-cell">
+          <text class="date-picker-value">{{selectedClock || '请选择时间'}}</text>
+        </view>
+      </picker>
+      <button class="btn-confirm" bindtap="onDateConfirm">确认</button>
+    </view>
+  </view>
+</block>
+
+<block wx:if="{{showInviteModal}}">
+  <view class="modal-mask" bindtap="onInviteClose"></view>
+  <view class="modal-dialog invite-dialog" catchtap="noop">
+    <view class="modal-header">
+      <text class="modal-title">邀请成员</text>
+      <text class="modal-close" bindtap="onInviteClose">×</text>
+    </view>
+    <view class="invite-modal-body">
+      <view class="invite-search-row">
+        <input
+          class="field-input invite-search-input"
+          value="{{inviteSearchKeyword}}"
+          placeholder="搜索用户昵称"
+          confirm-type="search"
+          bindinput="onInviteSearchInput"
+          bindconfirm="onInviteSearchConfirm"
+        />
+        <button class="btn-small invite-search-btn" bindtap="onInviteSearchTap" loading="{{inviteSearching}}" disabled="{{inviteSearching}}">搜索</button>
+      </view>
+
+      <view wx:if="{{selectedInvitees.length}}" class="invite-selected-panel">
+        <view class="invite-panel-title">已选择 {{selectedInvitees.length}} 人</view>
+        <view class="invite-chip-list invite-chip-list--modal">
+          <view class="invite-chip" wx:for="{{selectedInvitees}}" wx:key="id">
+            <image class="invite-chip__avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+            <text class="invite-chip__name">{{item.nickName}}</text>
+            <text class="invite-chip__remove" data-id="{{item.id}}" catchtap="onInviteRemove">×</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="invite-message-panel">
+        <view class="invite-panel-title">邀请话术</view>
+        <textarea
+          class="invite-message-input"
+          value="{{inviteMessage}}"
+          maxlength="120"
+          placeholder="写一句想对对方说的话"
+          bindinput="onInviteMessageInput"
+        />
+      </view>
+
+      <view class="invite-result-list">
+        <view
+          class="invite-user-item {{item.selected ? 'invite-user-item--selected' : ''}}"
+          wx:for="{{inviteSearchResults}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="onInviteUserToggle"
+        >
+          <image class="invite-user-avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+          <view class="invite-user-main">
+            <view class="invite-user-name">{{item.nickName}}</view>
+            <view class="invite-user-meta">信誉分 {{item.creditScore || 100}} · 评分 {{item.ratingText || '暂无'}}</view>
+          </view>
+          <view class="invite-user-check">{{item.selected ? '已选' : '邀请'}}</view>
+        </view>
+      </view>
+      <view wx:if="{{inviteSearchError}}" class="invite-search-empty">{{inviteSearchError}}</view>
+
+      <button class="btn-confirm invite-done-btn" bindtap="onInviteConfirm">完成</button>
+    </view>
+  </view>
+</block>

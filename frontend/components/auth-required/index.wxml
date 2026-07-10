@@ -1,0 +1,4 @@
+<view class="auth-required">
+  <view class="auth-required__title">{{title}}</view>
+  <button class="auth-required__btn" bindtap="onLoginTap">{{buttonText}}</button>
+</view>

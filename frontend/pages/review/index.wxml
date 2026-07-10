@@ -1,0 +1,58 @@
+<view class="page-shell review-page" wx:if="{{isLoggedIn}}">
+  <view class="surface-card hero-card review-hero">
+    <view class="section-title">{{postTitle}}</view>
+    <view class="section-subtitle">履约完成后，在这里给本次活动中需要评价的对象打分。</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty-state surface-card section-block">
+    <view class="empty-state__icon">...</view>
+    <view class="empty-state__title">正在加载评分对象</view>
+    <view class="empty-state__desc">请稍候，我们正在同步本次活动的评分信息。</view>
+  </view>
+
+  <view wx:elif="{{reviewTargets.length}}" class="card-list section-block">
+    <view class="surface-card review-card" wx:for="{{reviewTargets}}" wx:key="index">
+      <view class="review-card__head">
+        <image class="review-card__avatar" src="{{item.user.avatarUrl}}" mode="aspectFill" />
+        <view class="review-card__meta">
+          <view class="review-card__name">{{item.user.nickName}}</view>
+          <view class="review-card__sub">请选择 1 到 5 星，并可补充一句简短评价。</view>
+        </view>
+      </view>
+
+      <view class="review-stars">
+        <text class="review-stars__label">评分</text>
+        <view class="review-stars__row">
+          <text wx:for="{{[1,2,3,4,5]}}" wx:key="*this" wx:for-item="star" class="review-stars__item {{star <= ratings[item.user.id] ? 'review-stars__item--active' : ''}}" data-user-id="{{item.user.id}}" data-rating="{{star}}" bindtap="onStarTap">★</text>
+        </view>
+      </view>
+
+      <textarea class="review-card__input" value="{{comments[item.user.id]}}" placeholder="简单写一句你的感受（可选）" data-user-id="{{item.user.id}}" maxlength="200" bindinput="onCommentInput" />
+    </view>
+  </view>
+
+  <view wx:else class="empty-state surface-card section-block">
+    <view class="empty-state__icon">✓</view>
+    <view class="empty-state__title">当前没有待评分对象</view>
+    <view class="empty-state__desc">如果本次活动已经全部评价完成，可以直接返回“我的”页。</view>
+  </view>
+
+  <view class="page-footer-actions bottom-safe-area" wx:if="{{!loading}}">
+    <view class="page-footer-actions__stack">
+      <button wx:if="{{reviewTargets.length}}" class="primary-btn" bindtap="onSubmit" loading="{{submitting}}" disabled="{{submitting}}">提交评分</button>
+      <button wx:else class="ghost-btn" bindtap="backToProfile">返回我的</button>
+    </view>
+  </view>
+
+  <login-modal
+    visible="{{showLoginModal}}"
+    title="登录后继续"
+    tip="评分功能需要先登录。"
+    bind:close="onLoginModalClose"
+    bind:wechat="onWechatLogin"
+    bind:password="onPasswordLogin"
+    bind:register="onRegister"
+  />
+</view>
+
+<auth-required wx:if="{{!isLoggedIn && !showLoginModal}}" title="登录后才能继续评分" buttonText="去登录" bind:login="onLoginTap" />

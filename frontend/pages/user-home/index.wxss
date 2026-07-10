@@ -1,0 +1,36 @@
+@import "../profile/index.wxss";
+
+.user-home-hero {
+  padding: 34rpx 30rpx;
+  text-align: center;
+}
+
+.user-home-hero__avatar {
+  width: 150rpx;
+  height: 150rpx;
+  border-radius: 50%;
+  background: #e8efff;
+  margin: 0 auto;
+}
+
+.user-home-hero__name {
+  margin-top: 18rpx;
+  font-size: 38rpx;
+  color: #172033;
+  font-weight: 700;
+}
+
+.user-home-hero__desc {
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #6b7890;
+}
+
+.user-home-hero__tags {
+  justify-content: center;
+}
+
+.user-home-hero__stats {
+  margin-top: 28rpx;
+}

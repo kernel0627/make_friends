@@ -1,0 +1,85 @@
+.credit-hero__score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.credit-hero__score-item {
+  padding: 24rpx 20rpx;
+  border-radius: 22rpx;
+  background: rgba(244, 247, 255, 0.96);
+  text-align: center;
+}
+
+.credit-hero__score-num {
+  display: block;
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #255ad6;
+}
+
+.credit-hero__score-label {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #6b7890;
+}
+
+.credit-section {
+  padding: 28rpx;
+}
+
+.rule-item {
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+.ledger-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #edf1f8;
+}
+
+.ledger-item:last-child {
+  border-bottom: none;
+}
+
+.ledger-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger-title {
+  font-size: 28rpx;
+  color: #172033;
+}
+
+.ledger-note {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #667085;
+}
+
+.ledger-time {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #98a2b3;
+}
+
+.ledger-delta {
+  flex-shrink: 0;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.ledger-delta--up {
+  color: #255ad6;
+}
+
+.ledger-delta--down {
+  color: #e5484d;
+}

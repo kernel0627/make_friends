@@ -1,0 +1,116 @@
+<view class="page-shell invite-calendar-page">
+  <view class="surface-card invite-hero">
+    <view class="invite-hero__title">日历找人</view>
+    <view class="invite-hero__desc">根据活动类型、地点、时间偏好和用户画像，看看哪天更容易邀请到合适成员。</view>
+    <view class="invite-search-row">
+      <view class="input-shell invite-search-input">
+        <input
+          value="{{queryText}}"
+          placeholder="例如：羽毛球 北邮 晚上"
+          confirm-type="search"
+          bindinput="onQueryInput"
+          bindconfirm="onQueryConfirm"
+        />
+      </view>
+      <button class="primary-btn invite-search-btn" bindtap="onSearchTap" loading="{{loadingHeatmap}}">搜索</button>
+    </view>
+  </view>
+
+  <view wx:if="{{errorText}}" class="surface-card empty-state invite-error">
+    <view class="empty-state__icon">!</view>
+    <view class="empty-state__title">日历找人加载失败</view>
+    <view class="empty-state__desc">{{errorText}}</view>
+  </view>
+
+  <view wx:else class="surface-card invite-board">
+    <view class="invite-board__head">
+      <view>
+        <view class="invite-board__title">未来 30 天候选热度</view>
+        <view class="invite-board__hint">火焰越旺，表示这天可能愿意参加的人更多。</view>
+      </view>
+      <view class="invite-board__legend">🔥 找人</view>
+    </view>
+
+    <view class="weekday-row">
+      <view class="weekday-cell" wx:for="{{weekdayHeaders}}" wx:key="*this">{{item}}</view>
+    </view>
+
+    <view wx:if="{{loadingHeatmap && !monthSections.length}}" class="invite-loading">正在计算每天的候选成员...</view>
+
+    <view wx:for="{{monthSections}}" wx:key="key" class="month-section">
+      <view class="month-section__title">{{item.title}}</view>
+      <view class="invite-grid">
+        <block wx:for="{{item.cells}}" wx:key="key" wx:for-item="day">
+          <view wx:if="{{day.empty}}" class="invite-day invite-day--empty"></view>
+          <view
+            wx:else
+            class="invite-day {{day.selected ? 'invite-day--selected' : ''}} {{day.highlighted ? 'invite-day--highlighted' : ''}}"
+            data-date="{{day.date}}"
+            bindtap="onDateTap"
+          >
+            <view class="invite-day__top">
+              <text class="invite-day__number">{{day.dayNumber}}</text>
+              <text wx:if="{{day.isToday}}" class="invite-day__today">今</text>
+            </view>
+            <view class="invite-day__fire">{{day.fireDisplay}}</view>
+            <view class="invite-day__count">{{day.candidateCount}} 人</view>
+          </view>
+        </block>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-block candidate-section">
+    <view class="section-head">
+      <view>
+        <view class="section-title">{{selectedDateLabel}}的候选成员</view>
+        <view class="section-subtitle">点击邀请只会加入发布页预选列表，发布活动成功后才会真正发送。</view>
+      </view>
+    </view>
+
+    <view wx:if="{{loadingCandidates}}" class="surface-card empty-state candidate-state">
+      <view class="empty-state__icon">...</view>
+      <view class="empty-state__title">正在整理候选成员</view>
+      <view class="empty-state__desc">会优先展示兴趣、时间和地点更匹配的人。</view>
+    </view>
+    <view wx:elif="{{candidatesErrorText}}" class="surface-card empty-state candidate-state">
+      <view class="empty-state__icon">!</view>
+      <view class="empty-state__title">候选成员加载失败</view>
+      <view class="empty-state__desc">{{candidatesErrorText}}</view>
+    </view>
+    <view wx:elif="{{candidates.length}}" class="candidate-list">
+      <view class="surface-card candidate-card" wx:for="{{candidates}}" wx:key="id">
+        <image class="candidate-avatar" src="{{item.user.avatarUrl}}" mode="aspectFill" />
+        <view class="candidate-main">
+          <view class="candidate-title-row">
+            <view class="candidate-name">{{item.user.nickName}}</view>
+            <view class="candidate-score">{{item.matchScore}}</view>
+          </view>
+          <view class="candidate-meta">信誉分 {{item.user.creditScore || 100}} · 评分 {{item.ratingText || '暂无'}}</view>
+          <view class="candidate-reason">{{item.reasonText}}</view>
+          <view wx:if="{{item.reasonTags.length}}" class="candidate-tags">
+            <text class="candidate-tag" wx:for="{{item.reasonTags}}" wx:key="*this">{{item}}</text>
+          </view>
+        </view>
+        <button
+          class="candidate-btn {{item.selected ? 'candidate-btn--selected' : ''}}"
+          data-id="{{item.user.id}}"
+          catchtap="onCandidateToggle"
+        >
+          {{item.selected ? '已选' : '邀请'}}
+        </button>
+      </view>
+    </view>
+    <view wx:else class="surface-card empty-state candidate-state">
+      <view class="empty-state__icon">空</view>
+      <view class="empty-state__title">这天暂时没有合适候选</view>
+      <view class="empty-state__desc">可以换一天，或者减少地点、类型、时间段限制再试。</view>
+    </view>
+  </view>
+
+  <view class="invite-calendar-submit">
+    <button class="primary-btn invite-apply-btn" bindtap="onApplyTap">
+      应用日期和 {{selectedInvitees.length}} 位邀请
+    </button>
+  </view>
+</view>

@@ -1,0 +1,267 @@
+.chat-hero__title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #172033;
+}
+
+.message-section {
+  margin-top: 22rpx;
+}
+
+.invitation-toggle {
+  width: 100%;
+  margin: 0;
+  padding: 24rpx;
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  text-align: left;
+  line-height: 1;
+  border: none;
+}
+
+.invitation-toggle--expanded {
+  border-color: rgba(53, 109, 255, 0.34);
+  box-shadow: 0 18rpx 46rpx rgba(53, 109, 255, 0.12);
+}
+
+.invitation-toggle__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.invitation-toggle__title {
+  color: #172033;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.invitation-toggle__meta {
+  margin-top: 10rpx;
+  color: #6b7890;
+  font-size: 24rpx;
+}
+
+.invitation-toggle__count {
+  min-width: 58rpx;
+  height: 58rpx;
+  padding: 0 16rpx;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #356dff;
+  background: rgba(53, 109, 255, 0.12);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.invitation-toggle__action {
+  flex-shrink: 0;
+  color: #356dff;
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.invitation-tabs-card {
+  margin-top: 16rpx;
+}
+
+.invitation-list--expanded {
+  margin-top: 18rpx;
+}
+
+.message-inline-empty {
+  padding: 24rpx;
+  border: 1rpx dashed rgba(127, 148, 185, 0.32);
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.56);
+  color: #7a869a;
+  font-size: 25rpx;
+  text-align: center;
+}
+
+.invitation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.invitation-card {
+  padding: 24rpx;
+}
+
+.invitation-card__main {
+  display: flex;
+  align-items: flex-start;
+}
+
+.invitation-card__avatar {
+  margin-top: 4rpx;
+}
+
+.invitation-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.invitation-message {
+  margin-top: 10rpx;
+  color: #52637f;
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.invitation-post-title {
+  margin-top: 12rpx;
+  color: #172033;
+  font-size: 28rpx;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invitation-meta {
+  margin-top: 8rpx;
+  color: #7a869a;
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.sent-invitation-card {
+  background:
+    linear-gradient(135deg, rgba(255, 248, 227, 0.84), rgba(255, 255, 255, 0.96)),
+    #fff;
+}
+
+.sent-invitation-progress {
+  margin-top: 10rpx;
+  color: #52637f;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.invitation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.invitation-btn {
+  height: 58rpx;
+  line-height: 58rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border-radius: 18rpx;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.invitation-btn--ghost {
+  color: #356dff;
+  background: #f6f9ff;
+  border: 1rpx solid rgba(53, 109, 255, 0.22);
+}
+
+.invitation-btn--reject {
+  color: #f05261;
+  background: rgba(240, 82, 97, 0.1);
+  border: 1rpx solid rgba(240, 82, 97, 0.16);
+}
+
+.invitation-btn--accept {
+  color: #ffffff;
+  background: linear-gradient(135deg, #356dff 0%, #5b84ff 100%);
+  border: none;
+}
+
+.tabs-card {
+  padding: 10rpx;
+}
+
+.tabs-nav {
+  display: flex;
+  gap: 10rpx;
+}
+
+.tabs-nav__item {
+  flex: 1;
+  height: 76rpx;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  color: #586782;
+}
+
+.tabs-nav__item--active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #356dff 0%, #5b84ff 100%);
+  box-shadow: 0 10rpx 22rpx rgba(53, 109, 255, 0.2);
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx;
+}
+
+.avatar {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 22rpx;
+  background: #e8efff;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #172033;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.last-msg {
+  margin-top: 10rpx;
+  font-size: 25rpx;
+  line-height: 1.6;
+  color: #6b7890;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  color: #7a869a;
+  margin-left: 18rpx;
+}
+
+.chat-auth-card {
+  min-height: calc(100vh - 56rpx);
+}
+
+.login-entry {
+  width: 100%;
+  margin-top: 28rpx;
+}

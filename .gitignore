@@ -1,0 +1,84 @@
+# Operating system
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors and local workspace metadata
+.vscode/
+.idea/
+.kiro/
+.codex/
+.agents/
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# WeChat DevTools private configuration
+project.private.config.json
+project.private.config.*.json
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# JavaScript and miniprogram dependencies
+node_modules/
+miniprogram_npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Go build and test artifacts
+.gocache/
+.gomodcache/
+*.test
+*.coverprofile
+coverage.out
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build outputs and binaries
+bin/
+dist/
+build/
+out/
+coverage/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Runtime logs and process state
+.pids/
+*.log
+*.err
+*.out
+*.pid
+
+# Local databases and runtime data
+backend/data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Local model and download caches
+.hf/
+backend-model/*
+!backend-model/README.md

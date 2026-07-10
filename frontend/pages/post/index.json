@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "发布活动",
+  "usingComponents": {
+    "login-modal": "/components/login-modal/index"
+  }
+}

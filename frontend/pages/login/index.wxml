@@ -1,0 +1,16 @@
+<view class="page-shell auth-page">
+  <view class="surface-card hero-card auth-card">
+    <view class="auth-card__title">账号登录</view>
+    <view class="auth-card__desc">登录后就能继续参加活动、进入群聊、处理履约并查看评分结果。</view>
+
+    <view class="input-shell auth-card__field">
+      <input class="auth-card__input" placeholder="昵称" value="{{nickname}}" bindinput="onNicknameInput" confirm-type="next" />
+    </view>
+    <view class="input-shell auth-card__field">
+      <input class="auth-card__input" placeholder="密码" password value="{{password}}" bindinput="onPasswordInput" confirm-type="done" bindconfirm="onSubmit" />
+    </view>
+
+    <button class="primary-btn auth-card__submit" bindtap="onSubmit" loading="{{submitting}}">登录</button>
+    <button class="ghost-btn auth-card__switch" bindtap="onGoRegister">没有账号？去注册</button>
+  </view>
+</view>

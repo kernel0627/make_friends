@@ -1,0 +1,115 @@
+<view class="page-wrapper" wx:if="{{isLoggedIn}}">
+  <scroll-view scroll-y class="page">
+    <view class="section">
+      <view class="field-label">活动标题</view>
+      <input class="field-input {{errors.title ? 'error' : ''}}" value="{{title}}" placeholder="请输入活动标题" bindinput="onTitleInput" />
+      <view wx:if="{{errors.title}}" class="error-tip">{{errors.title}}</view>
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动描述</view>
+      <textarea class="field-textarea" value="{{description}}" placeholder="请输入活动描述" bindinput="onDescriptionInput" maxlength="500" />
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动类型</view>
+      <view class="picker-cell picker-cell--readonly">
+        <text class="picker-value">{{category || '未设置'}}</text>
+      </view>
+      <view class="readonly-tip">编辑页不允许修改活动类型</view>
+    </view>
+
+    <view class="section">
+      <view class="field-label">活动标签</view>
+      <input class="field-input {{errors.subCategory ? 'error' : ''}}" value="{{subCategory}}" placeholder="请输入活动标签" bindinput="onSubCategoryInput" />
+      <view wx:if="{{errors.subCategory}}" class="error-tip">{{errors.subCategory}}</view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">活动时间</view>
+      <radio-group class="radio-group" bindchange="onTimeModeChange">
+        <label class="radio-item"><radio value="range" checked="{{timeMode === 'range'}}" /><text>时间范围</text></label>
+        <label class="radio-item"><radio value="fixed" checked="{{timeMode === 'fixed'}}" /><text>固定时间</text></label>
+      </radio-group>
+      <block wx:if="{{timeMode === 'range'}}">
+        <view class="stepper-row">
+          <text class="stepper-label">未来</text>
+          <input class="stepper-input" type="number" value="{{timeRange}}" bindinput="onTimeRangeInput" />
+          <text class="stepper-unit">天内</text>
+        </view>
+        <view wx:if="{{errors.timeRange}}" class="error-tip">{{errors.timeRange}}</view>
+      </block>
+      <block wx:if="{{timeMode === 'fixed'}}">
+        <view class="picker-cell {{errors.fixedTime ? 'error' : ''}}" bindtap="onFixedTimeClick">
+          <text class="picker-value">{{fixedTimeDisplay || '请选择日期和时间'}}</text>
+          <text class="picker-arrow">></text>
+        </view>
+        <view wx:if="{{errors.fixedTime}}" class="error-tip">{{errors.fixedTime}}</view>
+      </block>
+    </view>
+
+    <view class="section">
+      <view class="section-title">活动地点</view>
+      <radio-group class="radio-group" bindchange="onLocationModeChange">
+        <label class="radio-item"><radio value="current" checked="{{locationMode === 'current'}}" /><text>当前位置</text></label>
+        <label class="radio-item"><radio value="manual" checked="{{locationMode === 'manual'}}" /><text>手动输入</text></label>
+      </radio-group>
+      <block wx:if="{{locationMode === 'current'}}">
+        <view class="location-row">
+          <text class="location-text">{{locationText || '定位中...'}}</text>
+          <button class="btn-small" bindtap="onGetCurrentLocation">刷新</button>
+        </view>
+      </block>
+      <block wx:if="{{locationMode === 'manual'}}">
+        <input class="field-input {{errors.locationText ? 'error' : ''}}" value="{{locationText}}" placeholder="请输入活动地点" bindinput="onLocationInput" />
+      </block>
+      <view wx:if="{{errors.locationText}}" class="error-tip">{{errors.locationText}}</view>
+    </view>
+
+    <view class="section">
+      <view class="stepper-row">
+        <text class="stepper-label">人数上限</text>
+        <input class="stepper-input" type="number" value="{{maxCount}}" bindinput="onMaxCountInput" />
+        <text class="stepper-unit">人</text>
+      </view>
+      <view wx:if="{{errors.maxCount}}" class="error-tip">{{errors.maxCount}}</view>
+    </view>
+  </scroll-view>
+
+  <view class="submit-wrap"><button class="btn-primary" bindtap="onSubmit" loading="{{submitting}}">保存修改</button></view>
+</view>
+
+<auth-required wx:if="{{!isLoggedIn && !showLoginModal}}" title="该功能需要登录后使用" buttonText="去登录" bind:login="onLoginTap" />
+
+<login-modal
+  visible="{{showLoginModal}}"
+  title="登录方式"
+  tip="该功能需要登录后使用"
+  bind:close="onLoginModalClose"
+  bind:wechat="onWechatLogin"
+  bind:password="onPasswordLogin"
+  bind:register="onRegister"
+/>
+
+<block wx:if="{{showDateModal}}">
+  <view class="modal-mask" bindtap="onDateModalClose"></view>
+  <view class="modal-dialog">
+    <view class="modal-header">
+      <text class="modal-title">选择日期时间</text>
+      <text class="modal-close" bindtap="onDateModalClose">×</text>
+    </view>
+    <view class="modal-body">
+      <picker mode="date" value="{{selectedDate}}" bindchange="onDateChange">
+        <view class="date-picker-cell">
+          <text class="date-picker-value">{{selectedDate || '请选择日期'}}</text>
+        </view>
+      </picker>
+      <picker mode="time" value="{{selectedClock}}" bindchange="onClockChange">
+        <view class="date-picker-cell">
+          <text class="date-picker-value">{{selectedClock || '请选择时间'}}</text>
+        </view>
+      </picker>
+      <button class="btn-confirm" bindtap="onDateConfirm">确认</button>
+    </view>
+  </view>
+</block>

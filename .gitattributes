@@ -1,0 +1,24 @@
+# Keep repository text files stable across Windows/macOS/Linux.
+* text=auto eol=lf
+
+# Windows launch scripts should stay Windows-friendly.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets and generated database/model formats should never be normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.db binary
+*.db-shm binary
+*.db-wal binary
+*.sqlite binary
+*.sqlite3 binary
+*.safetensors binary
+*.bin binary
+*.exe binary

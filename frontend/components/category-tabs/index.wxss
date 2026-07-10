@@ -1,0 +1,36 @@
+.tabs-shell {
+  padding: 18rpx;
+}
+
+.tabs-main,
+.tabs-sub {
+  white-space: nowrap;
+}
+
+.tabs-sub {
+  margin-top: 14rpx;
+}
+
+.tab-chip,
+.sub-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 14rpx;
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: #53627e;
+  background: rgba(118, 137, 173, 0.1);
+}
+
+.tab-chip--active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #356dff 0%, #5b84ff 100%);
+  box-shadow: 0 10rpx 20rpx rgba(53, 109, 255, 0.18);
+}
+
+.sub-chip--active {
+  color: #356dff;
+  background: rgba(53, 109, 255, 0.12);
+}

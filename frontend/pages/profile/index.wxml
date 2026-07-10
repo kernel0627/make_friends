@@ -1,0 +1,98 @@
+<view class="page-shell">
+  <block wx:if="{{isLoggedIn && currentUser}}">
+    <view class="surface-card hero-card profile-hero">
+      <view class="profile-hero__top">
+        <view class="profile-hero__user">
+          <view class="profile-avatar-wrap">
+            <image class="profile-avatar" src="{{currentUser.avatarUrl}}" mode="aspectFill" />
+            <button class="profile-avatar-btn" bindtap="onRandomAvatarTap" loading="{{refreshingAvatar}}">换</button>
+          </view>
+          <view class="profile-hero__meta">
+            <view class="profile-name">{{currentUser.nickName}}</view>
+            <view class="profile-role">信誉分 {{creditScore}} · 评价分 {{ratingScore}}</view>
+          </view>
+        </view>
+        <button class="ghost-btn profile-logout" bindtap="onLogoutTap">退出登录</button>
+      </view>
+
+      <view class="profile-tags" wx:if="{{interestTags.length}}">
+        <view class="inline-pill inline-pill--blue" wx:for="{{interestTags}}" wx:key="index">{{item.value || item}}</view>
+      </view>
+
+      <view class="profile-stats">
+        <view class="profile-stat">
+          <view class="profile-stat__num">{{initiatedPosts.length}}</view>
+          <view class="profile-stat__label">发起活动</view>
+        </view>
+        <view class="profile-stat">
+          <view class="profile-stat__num">{{joinedPosts.length}}</view>
+          <view class="profile-stat__label">参加活动</view>
+        </view>
+      </view>
+
+      <button class="ghost-btn profile-credit-link" bindtap="onCreditExplainTap">查看信誉分说明</button>
+    </view>
+
+    <view class="surface-card section-block tabs-card">
+      <view class="tabs-nav">
+        <view class="tabs-nav__item {{activeTab === 0 ? 'tabs-nav__item--active' : ''}}" data-index="0" bindtap="onTabTap">我发起的</view>
+        <view class="tabs-nav__item {{activeTab === 1 ? 'tabs-nav__item--active' : ''}}" data-index="1" bindtap="onTabTap">我参加的</view>
+      </view>
+    </view>
+
+    <view class="card-list section-block" wx:if="{{activeTab === 0}}">
+      <view class="surface-card project-card" wx:for="{{initiatedPosts}}" wx:key="id" data-id="{{item.id}}" bindtap="onPostTap">
+        <view class="project-card__head">
+          <view class="project-card__title">{{item.title}}</view>
+          <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+        </view>
+        <view class="project-card__time">{{item.timeText}}</view>
+        <view class="project-card__score" wx:if="{{item.scoreText}}">{{item.scoreText}}</view>
+        <view class="project-card__preview" wx:if="{{item.previewText}}">{{item.previewText}}</view>
+        <button wx:if="{{item.action}}" class="secondary-btn project-card__action" catchtap="onActionTap" data-route="{{item.action.route}}">{{item.action.text}}</button>
+      </view>
+      <view wx:if="{{!initiatedPosts.length}}" class="empty-state surface-card">
+        <view class="empty-state__icon">空</view>
+        <view class="empty-state__title">你还没有发起过活动</view>
+        <view class="empty-state__desc">去首页右下角点一下加号，发起你的第一场活动吧。</view>
+      </view>
+    </view>
+
+    <view class="card-list section-block" wx:if="{{activeTab === 1}}">
+      <view class="surface-card project-card" wx:for="{{joinedPosts}}" wx:key="id" data-id="{{item.id}}" bindtap="onPostTap">
+        <view class="project-card__head">
+          <view class="project-card__title">{{item.title}}</view>
+          <view class="inline-pill inline-pill--{{item.statusTone}}">{{item.statusText}}</view>
+        </view>
+        <view class="project-card__time">{{item.timeText}}</view>
+        <view class="project-card__score" wx:if="{{item.scoreText}}">{{item.scoreText}}</view>
+        <view class="project-card__preview" wx:if="{{item.previewText}}">{{item.previewText}}</view>
+        <button wx:if="{{item.action}}" class="secondary-btn project-card__action" catchtap="onActionTap" data-route="{{item.action.route}}">{{item.action.text}}</button>
+      </view>
+      <view wx:if="{{!joinedPosts.length}}" class="empty-state surface-card">
+        <view class="empty-state__icon">空</view>
+        <view class="empty-state__title">你还没有参加过活动</view>
+        <view class="empty-state__desc">去首页挑一场感兴趣的活动加入吧。</view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="surface-card empty-state">
+      <view class="empty-state__icon">登</view>
+      <view class="empty-state__title">登录后查看你的活动记录</view>
+      <view class="empty-state__desc">登录后可以查看我发起的、我参加的、履约状态和评分结果。</view>
+      <button class="primary-btn login-entry" bindtap="onLogin">去登录 / 注册</button>
+    </view>
+  </block>
+
+  <login-modal
+    visible="{{showLoginModal}}"
+    title="登录后继续"
+    tip="登录后即可查看你的活动记录和履约评分结果。"
+    bind:close="onLoginModalClose"
+    bind:wechat="onWechatLogin"
+    bind:password="onPasswordLogin"
+    bind:register="onRegister"
+  />
+</view>

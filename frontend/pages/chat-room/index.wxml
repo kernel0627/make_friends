@@ -1,0 +1,51 @@
+<view class="chat-room" wx:if="{{isLoggedIn}}">
+  <view class="page-shell chat-room__shell">
+    <view class="surface-card chat-room__top-bar">
+      <view>
+        <view class="section-title">{{title}}</view>
+        <view class="section-subtitle">群聊消息会按时间顺序显示，点击按钮可以回到活动详情。</view>
+      </view>
+      <button class="ghost-btn chat-room__detail-btn" bindtap="onGoDetail">查看详情</button>
+    </view>
+
+    <scroll-view class="chat-room__list" scroll-y scroll-with-animation scroll-into-view="{{lastMsgId}}">
+      <view wx:if="{{!messages.length}}" class="empty-state surface-card">
+        <view class="empty-state__icon">聊</view>
+        <view class="empty-state__title">还没有群消息</view>
+        <view class="empty-state__desc">你现在发出的第一条消息，会成为这场活动聊天的开场白。</view>
+      </view>
+      <view class="msg-item" wx:for="{{messages}}" wx:key="id" id="{{item.id}}">
+        <image class="avatar" src="{{(item.sender && item.sender.avatarUrl) || ''}}" mode="aspectFill" />
+        <view class="msg-body">
+          <view class="nickname">{{(item.sender && item.sender.nickName) || item.senderId}}</view>
+          <view class="bubble">{{item.content}}</view>
+          <view class="msg-time">{{item.time || ''}}</view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="chat-room__input-bar">
+    <input class="input-field" placeholder="输入消息..." value="{{inputText}}" bindinput="onInputChange" confirm-type="send" bindconfirm="onSendTap" />
+    <button class="primary-btn chat-room__send-btn" bindtap="onSendTap" loading="{{sending}}">发送</button>
+  </view>
+</view>
+
+<view class="page-shell" wx:if="{{!isLoggedIn && !showLoginModal}}">
+  <view class="surface-card empty-state chat-room__auth-card">
+    <view class="empty-state__icon">登</view>
+    <view class="empty-state__title">登录后进入群聊</view>
+    <view class="empty-state__desc">登录后可以查看这场活动的群聊消息，也能和其他成员继续交流。</view>
+    <button class="primary-btn login-entry" bindtap="onLoginTap">去登录 / 注册</button>
+  </view>
+</view>
+
+<login-modal
+  visible="{{showLoginModal}}"
+  title="登录后继续"
+  tip="登录后可以查看群聊消息和活动交流记录。"
+  bind:close="onLoginModalClose"
+  bind:wechat="onWechatLogin"
+  bind:password="onPasswordLogin"
+  bind:register="onRegister"
+/>

@@ -1,0 +1,91 @@
+<view class="page-shell calendar-page">
+  <view class="surface-card calendar-search">
+    <view class="calendar-search__title">日历找活动</view>
+    <view class="calendar-search__desc">输入活动、地点或一天中的时间，例如“羽毛球 北邮 晚上”。不输入时会按你的历史偏好推荐。</view>
+    <view class="calendar-search__row">
+      <view class="input-shell calendar-search__input">
+        <input
+          value="{{queryText}}"
+          placeholder="想找什么活动？"
+          confirm-type="search"
+          bindinput="onQueryInput"
+          bindconfirm="onQueryConfirm"
+        />
+      </view>
+      <button class="primary-btn calendar-search__btn" bindtap="onSearchTap" loading="{{loadingHeatmap}}">搜索</button>
+    </view>
+    <view wx:if="{{queryText}}" class="calendar-search__clear" bindtap="onClearQueryTap">清空搜索条件</view>
+  </view>
+
+  <view wx:if="{{errorText}}" class="empty-state surface-card calendar-error">
+    <view class="empty-state__icon">!</view>
+    <view class="empty-state__title">日历加载失败</view>
+    <view class="empty-state__desc">{{errorText}}</view>
+  </view>
+
+  <view wx:else class="surface-card calendar-board">
+    <view class="calendar-board__head">
+      <view>
+        <view class="calendar-board__title">未来活动热度</view>
+        <view class="calendar-board__hint">火焰越旺，表示当天更可能有你感兴趣的活动。</view>
+      </view>
+      <view class="calendar-board__legend">🔥 热度</view>
+    </view>
+
+    <view class="weekday-row">
+      <view class="weekday-cell" wx:for="{{weekdayHeaders}}" wx:key="*this">{{item}}</view>
+    </view>
+
+    <view wx:if="{{loadingHeatmap && !monthSections.length}}" class="calendar-loading">正在生成日历推荐...</view>
+
+    <view wx:for="{{monthSections}}" wx:key="key" class="month-section">
+      <view class="month-section__title">{{item.title}}</view>
+      <view class="calendar-grid">
+        <block wx:for="{{item.cells}}" wx:key="key" wx:for-item="day">
+          <view wx:if="{{day.empty}}" class="calendar-day calendar-day--empty"></view>
+          <view
+            wx:else
+            class="calendar-day {{day.selected ? 'calendar-day--selected' : ''}} {{day.highlighted ? 'calendar-day--highlighted' : ''}}"
+            data-date="{{day.date}}"
+            bindtap="onDateTap"
+          >
+            <view class="calendar-day__top">
+              <text class="calendar-day__number">{{day.dayNumber}}</text>
+              <text wx:if="{{day.isToday}}" class="calendar-day__today">今</text>
+            </view>
+            <view class="calendar-day__fire">{{day.fireDisplay}}</view>
+            <view class="calendar-day__count">{{day.activityCount}} 场</view>
+          </view>
+        </block>
+      </view>
+    </view>
+  </view>
+
+  <view class="section-block calendar-result">
+    <view class="section-head">
+      <view>
+        <view class="section-title">{{selectedDateLabel}}的活动</view>
+        <view class="section-subtitle">先扫一眼基础信息，点卡片可进入详情继续报名或聊天。</view>
+      </view>
+    </view>
+
+    <view wx:if="{{loadingPosts}}" class="empty-state surface-card calendar-result__state">
+      <view class="empty-state__icon">...</view>
+      <view class="empty-state__title">正在整理这一天的活动</view>
+      <view class="empty-state__desc">会优先把更符合输入和历史偏好的活动排在前面。</view>
+    </view>
+    <view wx:elif="{{postsErrorText}}" class="empty-state surface-card calendar-result__state">
+      <view class="empty-state__icon">!</view>
+      <view class="empty-state__title">活动加载失败</view>
+      <view class="empty-state__desc">{{postsErrorText}}</view>
+    </view>
+    <view wx:elif="{{selectedPosts.length}}" class="card-list">
+      <post-card wx:for="{{selectedPosts}}" wx:key="id" post="{{item}}" bind:cardtap="onPostCardTap" />
+    </view>
+    <view wx:else class="empty-state surface-card calendar-result__state">
+      <view class="empty-state__icon">空</view>
+      <view class="empty-state__title">这天暂时没有匹配活动</view>
+      <view class="empty-state__desc">可以换一个日期，或者减少地点、类型等筛选词再试。</view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,12 @@
+torch
+torchvision
+torchaudio
+sentence-transformers==2.2.2
+transformers==4.28.1
+tokenizers==0.13.3
+huggingface-hub==0.14.1
+redis
+scikit-learn
+numpy
+pandas
+

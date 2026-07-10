@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "日历找活动",
+  "usingComponents": {
+    "post-card": "/components/post-card/index"
+  }
+}

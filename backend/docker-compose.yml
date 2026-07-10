@@ -1,0 +1,33 @@
+﻿services:
+  redis:
+    image: redis:7-alpine
+    container_name: zgbe-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zgbe-backend
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - BACKEND_ADDR=:8080
+      - USE_REDIS=true
+      - REDIS_ADDR=redis:6379
+      - WS_ENABLED=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  redis-data:

@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "消息",
+  "usingComponents": {
+    "login-modal": "/components/login-modal/index",
+    "auth-required": "/components/auth-required/index"
+  }
+}

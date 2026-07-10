@@ -1,0 +1,42 @@
+<view class="post-card surface-card" hover-class="post-card--hover" bindtap="onTap">
+  <view class="post-card__glow post-card__glow--one"></view>
+  <view class="post-card__glow post-card__glow--two"></view>
+
+  <view class="post-card__inner">
+    <view class="post-card__top">
+      <view class="post-card__main">
+        <view class="post-card__title">{{post.title}}</view>
+        <view wx:if="{{descriptionText}}" class="post-card__desc">{{descriptionText}}</view>
+      </view>
+      <view class="post-card__badge-stack">
+        <view class="post-card__category">{{post.category || '活动'}}</view>
+        <view class="inline-pill inline-pill--{{statusTone}} post-card__status">{{statusText}}</view>
+      </view>
+    </view>
+
+    <view class="post-card__meta-shell">
+      <view class="post-card__meta">
+        <view class="meta-line">
+          <image class="meta-icon" src="/assets/detail/time.svg" mode="aspectFit" />
+          <text>{{timeText}}</text>
+        </view>
+        <view class="meta-line">
+          <image class="meta-icon" src="/assets/detail/location.svg" mode="aspectFit" />
+          <text>{{addressText}}</text>
+        </view>
+        <view class="meta-line">
+          <image class="meta-icon" src="/assets/detail/people.svg" mode="aspectFit" />
+          <text>{{post.currentCount}} / {{post.maxCount}} 人</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="post-card__bottom">
+      <view class="post-card__bottom-chip">{{subCategoryText}}</view>
+      <view class="post-card__author">
+        <image class="post-card__avatar" src="{{authorAvatar}}" mode="aspectFill" />
+        <text class="post-card__author-name">{{authorName}}</text>
+      </view>
+    </view>
+  </view>
+</view>
