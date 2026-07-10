@@ -27,15 +27,12 @@ GET http://127.0.0.1:8080/healthz
 如果只想拆开调试，也可以手动分开启动：
 
 ```powershell
-cd d:\programs\homework\backend
-$env:GOCACHE = "d:\programs\homework\.gocache"
-$env:GOTMPDIR = "d:\programs\homework\.gocache\tmp"
-$env:GOMODCACHE = "d:\programs\homework\.gomodcache"
+cd backend
 go run ./cmd/server
 ```
 
 ```powershell
-cd d:\programs\homework\admin-web
+cd admin-web
 npm install
 npm run dev
 ```

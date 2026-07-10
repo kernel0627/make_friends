@@ -32,8 +32,15 @@ That script is the official entry for:
 ## Conda setup
 
 ```powershell
-conda create -n homework_env python=3.10 -y
-conda run -n homework_env python -m pip install -r backend/recommender/requirements.txt
+conda create -n make_friends_env python=3.10 -y
+conda run -n make_friends_env python -m pip install -r backend/recommender/requirements.txt
+```
+
+也可以直接在仓库根目录创建脚本优先识别的本地虚拟环境：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\recommender\requirements.txt
 ```
 
 ## Manual run
@@ -42,5 +49,5 @@ If you only want to run the worker manually, make sure Redis and the backend are
 
 ```powershell
 cd backend
-conda run -n homework_env python -m recommender.worker
+conda run -n make_friends_env python -m recommender.worker
 ```

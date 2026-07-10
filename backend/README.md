@@ -28,9 +28,6 @@
 
 ```powershell
 cd backend
-$env:GOCACHE = "d:\programs\homework\.gocache"
-$env:GOTMPDIR = "d:\programs\homework\.gocache\tmp"
-$env:GOMODCACHE = "d:\programs\homework\.gomodcache"
 $env:BACKEND_ADDR = ":8080"
 $env:USE_REDIS = "false"
 go run ./cmd/server
@@ -70,9 +67,6 @@ go run ./cmd/server
 
 ```powershell
 cd backend
-$env:GOCACHE = "d:\programs\homework\.gocache"
-$env:GOTMPDIR = "d:\programs\homework\.gocache\tmp"
-$env:GOMODCACHE = "d:\programs\homework\.gomodcache"
 go run ./cmd/seed-full -reset=true
 ```
 
@@ -87,9 +81,6 @@ go run ./cmd/seed-admin
 
 ```powershell
 cd backend
-$env:GOCACHE = "d:\programs\homework\.gocache"
-$env:GOTMPDIR = "d:\programs\homework\.gocache\tmp"
-$env:GOMODCACHE = "d:\programs\homework\.gomodcache"
 go run ./cmd/repair-settlements
 ```
 
@@ -99,9 +90,6 @@ go run ./cmd/repair-settlements
 
 ```powershell
 cd backend
-$env:GOCACHE = "d:\programs\homework\.gocache"
-$env:GOTMPDIR = "d:\programs\homework\.gocache\tmp"
-$env:GOMODCACHE = "d:\programs\homework\.gomodcache"
 go test ./...
 go build ./...
 ```

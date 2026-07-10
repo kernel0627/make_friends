@@ -1,4 +1,4 @@
-const SESSION_KEY = "homework_admin_session";
+const SESSION_KEY = "make_friends_admin_session";
 
 export function getSession() {
   try {

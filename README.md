@@ -1,68 +1,283 @@
-# 找个伴儿
+# Make Friends（找个伴儿）
 
-这个仓库现在分成 4 个主要部分：
+一个面向线下活动和兴趣社交的完整应用。用户可以发布活动、报名或邀请其他人、进入活动群聊、完成履约结算与互评；系统再根据这些行为更新信誉数据和推荐结果。
 
-- `frontend/`：微信小程序前端工程
-- `backend/`：Go 后端
-- `admin-web/`：后台管理前端
-- `backend/recommender/`：推荐 worker
+仓库同时包含微信小程序、Go 后端、React 管理后台和 Python 推荐 worker，可用于完整产品联调，也可以单独学习各个子系统。
 
-## 小程序调试
+## 核心能力
 
-以后请直接打开这个目录调试小程序：
+- 活动发布、搜索、筛选、报名、取消和关闭
+- 邀请日历、活动日历、站内消息和活动群聊
+- WebSocket 实时消息与 SQLite 消息持久化
+- 履约结算、互评、活动分和信誉积分流水
+- DeepSeek 智能活动草稿
+- 推荐曝光、点击、用户标签、向量召回和排序模型
+- 用户、活动、审核案例、评价、积分和管理员账号管理
 
-```text
-d:\programs\homework\frontend
+## 系统结构
+
+```mermaid
+flowchart LR
+    Mini["微信小程序<br/>frontend"] -->|"HTTP / WebSocket"| API["Go API<br/>Gin + GORM"]
+    Admin["管理后台<br/>React + Vite"] -->|"HTTP"| API
+    API --> DB["SQLite<br/>业务数据"]
+    API -->|"缓存 / Pub/Sub / Streams"| Redis["Redis"]
+    Redis --> Worker["Python 推荐 Worker"]
+    Worker --> DB
+    Worker --> Model["本地向量模型<br/>backend-model"]
+    API -->|"智能发布"| DeepSeek["DeepSeek API"]
 ```
 
-`frontend/` 已经包含完整的小程序工程文件：
+Redis 在项目里承担三种不同职责：接口缓存、WebSocket 房间 Pub/Sub、推荐事件与任务 Streams。Redis 未启用时，基础 HTTP 接口和 SQLite 数据仍可独立运行，但实时聊天和异步推荐链路会受限。
 
-- `app.js`
-- `app.json`
-- `app.wxss`
-- `pages/`
-- `components/`
-- `utils/`
-- `assets/`
-- `project.config.json`
+## 技术栈
 
-小程序内部仍然使用原来的绝对路径写法：
+| 模块 | 技术 |
+| --- | --- |
+| 微信小程序 | 原生 JavaScript / WXML / WXSS |
+| 后端 | Go 1.25、Gin、GORM、JWT |
+| 数据库 | SQLite（WAL 模式） |
+| 实时与队列 | Redis Cache、Pub/Sub、Streams、WebSocket |
+| 管理后台 | React 18、React Router、Vite 5 |
+| 推荐系统 | Python、PyTorch、Sentence Transformers、scikit-learn |
+| 智能发布 | DeepSeek Chat API |
 
-- `/pages/...`
-- `/components/...`
-- `/assets/...`
-
-不需要再从仓库根目录打开微信开发者工具。
-
-## 后端入口
-
-后端源码入口：
+## 目录结构
 
 ```text
-backend/cmd/server/main.go
+make_friends/
+├── frontend/                  微信小程序
+├── backend/
+│   ├── cmd/                   服务、种子和修复命令
+│   ├── internal/              API、模型、数据库、评分和推荐逻辑
+│   ├── recommender/           Python 推荐 worker
+│   ├── data/                  本地 SQLite 数据（不提交）
+│   └── go.mod
+├── admin-web/                 React 管理后台
+├── backend-model/             本地向量模型目录（仅提交说明文件）
+├── docs/                      数据库、智能发布和仓库规范文档
+├── scripts/                   Windows PowerShell 编排脚本
+└── start-*.bat / stop-*.bat   Windows 快捷入口
 ```
 
-健康检查接口：
+## 环境要求
 
-```text
-GET /healthz
+基础开发：
+
+- Git
+- Go 1.25 或更高版本
+- Node.js 18 或更高版本
+- 微信开发者工具
+
+启用完整能力时还需要：
+
+- Docker（启动 Redis）
+- Python 3.10
+- Conda 或 venv
+- 本地向量模型，放在 `backend-model/`
+- 可用的 DeepSeek API Key（智能发布）
+- 可用的腾讯位置服务 Key（地点搜索和逆地址解析）
+
+## 快速开始
+
+### 1. 克隆项目
+
+推荐使用 SSH：
+
+```bash
+git clone git@github.com:kernel0627/make_friends.git
+cd make_friends
 ```
 
-## 常用启动命令
+### 2. 启动基础后端
+
+不启用 Redis 时，后端可以直接运行：
+
+```bash
+cd backend
+USE_REDIS=false go run ./cmd/server
+```
+
+PowerShell：
+
+```powershell
+cd backend
+$env:USE_REDIS = "false"
+go run ./cmd/server
+```
+
+后端默认监听 `http://127.0.0.1:8080`，首次启动会自动创建 `backend/data/app.db`、迁移数据表并补齐本地管理员账号。
+
+检查服务：
+
+```bash
+curl http://127.0.0.1:8080/healthz
+```
+
+### 3. 启动管理后台
+
+保持后端运行，另开一个终端：
+
+```bash
+cd admin-web
+npm ci
+npm run dev
+```
+
+访问 `http://127.0.0.1:5173`。默认 API 地址是 `http://127.0.0.1:8080`，可通过 `VITE_API_BASE` 覆盖。
+
+本地管理员账号：
+
+- `admin / 123456`
+- `admin1 / 123456`
+- `admin2 / 123456`
+
+这些账号只适合本地开发，部署前必须修改默认密码。
+
+### 4. 启动微信小程序
+
+在微信开发者工具中直接导入 `frontend/` 目录。
+
+小程序接口地址和地图配置位于 `frontend/utils/config.js`：
+
+```js
+const API_BASE_URL = 'http://127.0.0.1:8080/api/v1'
+const TENCENT_MAP_KEY = ''
+```
+
+仓库不会提交真实地图 Key。需要地点搜索时，请只在本地填写，并避免把 Key 提交到公共仓库。`frontend/project.private.config.json` 同样属于本机配置，已被 Git 忽略。
+
+### 5. 启用 Redis、WebSocket 和推荐事件
+
+先准备后端环境文件并启动 Redis：
+
+```bash
+cp backend/.env.example backend/.env
+cd backend
+docker compose up -d redis
+USE_REDIS=true REDIS_ADDR=127.0.0.1:6379 WS_ENABLED=true go run ./cmd/server
+```
+
+Redis 启用后，聊天室 WebSocket、在线状态、接口缓存和推荐 Streams 才会进入完整工作模式。
+
+### 6. 启动推荐 Worker（可选）
+
+```bash
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/recommender/requirements.txt
+cd backend
+PYTHONPATH=. REC_DEVICE=cpu python -m recommender.worker
+```
+
+使用 GPU 时将 `REC_DEVICE` 改为对应设备，例如 `cuda`。全量重建向量和排序模型：
+
+```bash
+cd backend
+PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
+```
+
+## Windows 一键启动
+
+只启动后端和管理后台：
 
 ```powershell
 .\start-admin-system.bat
+```
+
+启动后端、Redis、推荐 worker 和管理后台：
+
+```powershell
 .\start-all.bat
 .\status-all.bat
 .\stop-all.bat
 ```
 
-## 目录说明
+重新生成演示数据并重建推荐结果：
 
-```text
-frontend/               微信小程序前端
-backend/                Go 后端
-admin-web/              后台管理前端
-docs/                   项目文档
-scripts/                启动和辅助脚本
+```powershell
+.\start-all.bat -Reseed -RebuildRecommendations
 ```
+
+完整栈脚本要求 Docker、Go、Node.js 和推荐运行环境可用。脚本优先查找仓库根目录的 `.venv`，也兼容名为 `make_friends_env` 的 Conda 环境，不依赖固定磁盘路径。
+
+## 常用配置
+
+| 配置 | 默认值 | 用途 |
+| --- | --- | --- |
+| `BACKEND_ADDR` | `:8080` | 后端监听地址 |
+| `JWT_SECRET` | 开发默认值 | JWT 签名密钥，部署时必须更换 |
+| `WECHAT_APP_ID` | 空 | 微信登录 App ID |
+| `WECHAT_APP_SECRET` | 空 | 微信登录密钥 |
+| `USE_REDIS` | `false` | 是否启用 Redis 能力 |
+| `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
+| `REDIS_PASSWORD` | 空 | Redis 密码 |
+| `WS_ENABLED` | `true` | WebSocket 开关；仍需 Redis 可用 |
+| `DEEPSEEK_API_KEY` | 空 | 智能发布 API Key |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek API 地址 |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek 模型 |
+| `SMART_POST_TIMEZONE` | `Asia/Shanghai` | 智能发布时间解析时区 |
+| `VITE_API_BASE` | `http://127.0.0.1:8080` | 管理后台 API 地址 |
+
+后端环境变量示例见 `backend/.env.example`。不要提交真实 `.env`、数据库、私钥、模型文件或第三方 API Key。
+
+## 主要接口
+
+| 接口组 | 说明 |
+| --- | --- |
+| `GET /healthz` | 服务健康检查 |
+| `/api/v1/auth/*` | 注册、登录、刷新令牌和当前用户 |
+| `/api/v1/posts/*` | 活动列表、发布、报名、关闭、结算和评价 |
+| `/api/v1/calendar/*` | 活动日历和邀请日历 |
+| `/api/v1/chats/*`、`/api/v1/ws/chat` | 历史消息、发送消息和实时聊天 |
+| `/api/v1/recommendations/*` | 推荐曝光与点击反馈 |
+| `POST /api/v1/posts/smart-draft` | DeepSeek 智能活动草稿 |
+| `/api/v1/admin/*` | 管理后台接口 |
+
+## 数据与安全
+
+- SQLite 数据位于 `backend/data/app.db`，属于本地运行状态，不进入 Git。
+- Go 后端启动时自动执行 GORM 迁移。
+- DeepSeek Key 只应保存在后端环境变量中，不能放到小程序代码里。
+- 腾讯地图 Key 会在小程序客户端使用，应配置调用限制并避免提交到仓库。
+- `backend-model/` 下的模型权重和下载缓存不会进入 Git。
+- `.env`、日志、PID、构建产物、依赖目录和微信私有配置均由 `.gitignore` 排除。
+
+## 测试与构建
+
+Go 后端：
+
+```bash
+cd backend
+go test ./...
+go build ./...
+```
+
+微信小程序基础代码验证：
+
+```bash
+node frontend/verify-code.js
+```
+
+管理后台生产构建：
+
+```bash
+cd admin-web
+npm ci
+npm run build
+```
+
+Python 推荐模块语法检查：
+
+```bash
+python3 -m compileall -q backend/recommender
+```
+
+## 进一步文档
+
+- `backend/README.md`：后端入口、种子和修复命令
+- `admin-web/README.md`：管理后台说明
+- `backend/recommender/README.md`：推荐 worker 说明
+- `docs/DATABASE-OVERVIEW.md`：数据库结构
+- `docs/SMART-POST-DEEPSEEK.md`：智能发布协议
+- `docs/REPO-HYGIENE.md`：仓库文件管理规范

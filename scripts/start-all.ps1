@@ -24,6 +24,7 @@ $AdminPidFile = Join-Path $AdminWebDir ".dev.pid"
 $AdminStdout = Join-Path $AdminWebDir "dev.out.log"
 $AdminStderr = Join-Path $AdminWebDir "dev.err.log"
 $AdminUrl = "http://127.0.0.1:5173/"
+$WorkerEnvName = "make_friends_env"
 
 function Repair-ProcessPathEnvironment {
     $vars = [Environment]::GetEnvironmentVariables()
@@ -127,38 +128,30 @@ function Resolve-CondaExe {
     if ($cmd -and $cmd.Source) {
         return $cmd.Source
     }
-    $candidates = @(
-        "E:\conda\Scripts\conda.exe",
-        "$env:USERPROFILE\miniconda3\Scripts\conda.exe",
-        "$env:USERPROFILE\anaconda3\Scripts\conda.exe"
-    )
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
-            return $candidate
-        }
-    }
-    throw "conda was not found. Please make sure homework_env exists."
+    return $null
 }
 
-function Resolve-WorkerPython([string]$CondaExe) {
-    $condaRoot = Split-Path -Parent (Split-Path -Parent $CondaExe)
-    $candidates = @(
-        (Join-Path $condaRoot "envs\homework_env\python.exe"),
-        "E:\conda\envs\homework_env\python.exe",
-        "$env:USERPROFILE\miniconda3\envs\homework_env\python.exe",
-        "$env:USERPROFILE\anaconda3\envs\homework_env\python.exe"
-    )
-    foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate)) {
-            return $candidate
+function Resolve-WorkerPython {
+    $repoVenvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+    if (Test-Path -LiteralPath $repoVenvPython) {
+        return $repoVenvPython
+    }
+
+    $condaExe = Resolve-CondaExe
+    if ($condaExe) {
+        $condaInfo = & $condaExe env list --json | ConvertFrom-Json
+        $resolved = $condaInfo.envs | Where-Object {
+            (Split-Path -Leaf $_) -eq $WorkerEnvName
+        } | Select-Object -First 1
+        if ($resolved) {
+            $condaPython = Join-Path $resolved "python.exe"
+            if (Test-Path -LiteralPath $condaPython) {
+                return $condaPython
+            }
         }
     }
-    $pythonExe = & $CondaExe env list --json | ConvertFrom-Json
-    $resolved = $pythonExe.envs | Where-Object { $_ -like "*\envs\homework_env" } | Select-Object -First 1
-    if (-not $resolved) {
-        throw "failed to resolve homework_env python"
-    }
-    return (Join-Path $resolved "python.exe")
+
+    throw "recommender Python was not found. Create .venv in the repo root or create the $WorkerEnvName Conda environment."
 }
 
 function Resolve-NpmCmd {
@@ -315,9 +308,8 @@ try {
     Write-Host "[1/7] starting redis..."
     docker compose up -d redis | Out-Host
 
-    Write-Host "[2/7] resolving homework_env..."
-    $condaExe = Resolve-CondaExe
-    $workerPython = Resolve-WorkerPython $condaExe
+    Write-Host "[2/7] resolving recommender Python..."
+    $workerPython = Resolve-WorkerPython
 
     if (-not $SkipBuild) {
         Write-Host "[3/7] building backend..."
