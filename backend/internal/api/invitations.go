@@ -351,7 +351,7 @@ func writeInvitationActionError(c *gin.Context, err error) {
 	case err.Error() == "no permission":
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 	}
 }
 

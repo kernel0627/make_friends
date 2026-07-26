@@ -153,7 +153,7 @@ func (s *Server) CancelParticipation(c *gin.Context) {
 		case err.Error() == "author cannot cancel as participant", err.Error() == "closed post must use settlement flow", err.Error() == "participant already cancelled":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}
@@ -319,7 +319,7 @@ func (s *Server) UpsertParticipantSettlement(c *gin.Context) {
 		case err.Error() == "settlement is available only after post is closed", err.Error() == "project already cancelled":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}
@@ -394,7 +394,7 @@ func (s *Server) UpsertAuthorSettlement(c *gin.Context) {
 		case err.Error() == "settlement is available only after post is closed", err.Error() == "project already cancelled":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}
@@ -436,7 +436,7 @@ func (s *Server) CancelAllSettlement(c *gin.Context) {
 		case err.Error() == "settlement is available only after post is closed", err.Error() == "project already cancelled":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}

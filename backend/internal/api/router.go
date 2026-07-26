@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,7 @@ type Server struct {
 	RedisClient   *redis.Client
 	UseRedis      bool
 	WSEnabled     bool
+	AuthLimiter   *rateLimiter
 }
 
 const contextUserIDKey = "userID"
@@ -60,6 +62,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		}
 		log.Printf("WARNING: using insecure development JWT secret; set JWT_SECRET before deploying")
 	}
+	limits := newRateLimits()
 	s := &Server{
 		DB:            db,
 		JWTSecret:     jwtSecret,
@@ -71,9 +74,17 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		RedisClient:   redisClient,
 		UseRedis:      useRedis && redisClient != nil,
 		WSEnabled:     envBool("WS_ENABLED", true),
+		AuthLimiter:   limits.auth,
 	}
+	authLimit := limits.auth.limitBy("RATE_LIMITED", "too many attempts, please retry later", authAttemptKey)
+	smartDraftLimit := limits.smartDraft.limitBy("RATE_LIMITED", "smart draft quota exceeded, please retry later", userOrIPKey)
+	feedbackLimit := limits.recommendation.limitBy("RATE_LIMITED", "too many requests", userOrIPKey)
+
 	r := gin.Default()
 	r.Use(adminWebCORS())
+	// Cap request bodies: every endpoint here takes small JSON, and without a
+	// limit a single request can stream unbounded data into memory.
+	r.Use(limitRequestBody(maxRequestBodyBytes))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "time": time.Now().UnixMilli()})
@@ -85,10 +96,12 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			log.Printf("WARNING: /auth/mock-login is enabled; never enable this in production")
 			v1.POST("/auth/mock-login", s.MockLogin)
 		}
-		v1.POST("/auth/wechat-login", s.WechatLogin)
-		v1.POST("/auth/register", s.Register)
-		v1.POST("/auth/password-login", s.PasswordLogin)
-		v1.POST("/auth/refresh", s.RefreshToken)
+		// Credential endpoints are throttled: bcrypt makes each attempt
+		// expensive enough to be both a guessing oracle and a CPU sink.
+		v1.POST("/auth/wechat-login", authLimit, s.WechatLogin)
+		v1.POST("/auth/register", authLimit, s.Register)
+		v1.POST("/auth/password-login", authLimit, s.PasswordLogin)
+		v1.POST("/auth/refresh", authLimit, s.RefreshToken)
 		v1.POST("/auth/logout", s.Logout)
 
 		v1.GET("/posts", s.ListPosts)
@@ -98,8 +111,10 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		v1.GET("/calendar/activity-posts", s.CalendarActivityPosts)
 		v1.GET("/users/:id/home", s.GetUserHome)
 		v1.GET("/users/:id/credit-ledger", s.GetCreditLedger)
-		v1.POST("/recommendations/exposures", s.ReportRecommendationExposures)
-		v1.POST("/recommendations/click", s.ReportRecommendationClick)
+		// Anonymous write endpoints that feed the ranking model's training
+		// data; unthrottled they are a free way to poison recommendations.
+		v1.POST("/recommendations/exposures", feedbackLimit, s.ReportRecommendationExposures)
+		v1.POST("/recommendations/click", feedbackLimit, s.ReportRecommendationClick)
 		v1.GET("/ws/chat", s.WSChat)
 
 		authed := v1.Group("")
@@ -115,7 +130,8 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			authed.POST("/invitations/:id/accept", s.AcceptInvitation)
 			authed.POST("/invitations/:id/reject", s.RejectInvitation)
 			authed.POST("/invitations/:id/cancel", s.CancelInvitation)
-			authed.POST("/posts/smart-draft", s.SmartPostDraft)
+			// Each call spends real money at DeepSeek.
+			authed.POST("/posts/smart-draft", smartDraftLimit, s.SmartPostDraft)
 			authed.POST("/posts", s.CreatePost)
 			authed.PUT("/posts/:id", s.UpdatePost)
 			authed.POST("/posts/:id/join", s.JoinPost)
@@ -176,6 +192,19 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func envInt(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		log.Printf("invalid %s=%q, using %d", key, raw, fallback)
+		return fallback
+	}
+	return value
 }
 
 func envBool(key string, fallback bool) bool {
@@ -457,6 +486,9 @@ func (s *Server) PasswordLogin(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "NICKNAME_PASSWORD_REQUIRED", "nickname and password required")
 		return
 	}
+	if !s.allowAccountAttempt(c, nickname) {
+		return
+	}
 	var user model.User
 	if err := s.DB.First(&user, "nickname = ?", nickname).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -719,7 +751,7 @@ func (s *Server) ListPosts(c *gin.Context) {
 	nextPage := 0
 	if sortBy == "hot" {
 		if err := query.Find(&posts).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 			return
 		}
 		var err error
@@ -751,7 +783,7 @@ func (s *Server) ListPosts(c *gin.Context) {
 			offset = 0
 		}
 		if err := query.Order("created_at DESC").Offset(offset).Limit(pageSize + 1).Find(&posts).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 			return
 		}
 		if len(posts) > pageSize {
@@ -802,7 +834,7 @@ func (s *Server) GetPost(c *gin.Context) {
 			return
 		}
 		if err := s.DB.Find(&participants, "post_id = ? AND status = ?", post.ID, score.ParticipantStatusActive).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 			return
 		}
 		s.setCachedPostDetail(c.Request.Context(), post, participants)
@@ -875,7 +907,7 @@ func (s *Server) CreatePost(c *gin.Context) {
 		}
 		return s.createPostInvitationsTx(tx, post.ID, userID, req.invitationInputs(), now)
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 		return
 	}
 	s.invalidatePostsCache(c.Request.Context())
@@ -924,7 +956,7 @@ func (s *Server) UpdatePost(c *gin.Context) {
 	req.applyToPost(&post, now)
 
 	if err := s.DB.Save(&post).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 		return
 	}
 	s.invalidatePostsCache(c.Request.Context())
@@ -970,7 +1002,7 @@ func (s *Server) JoinPost(c *gin.Context) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}
@@ -1018,7 +1050,7 @@ func (s *Server) ClosePost(c *gin.Context) {
 		return score.RecalculatePostActivityScoresTx(tx, post, now)
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 		return
 	}
 	s.invalidatePostsCache(c.Request.Context())
@@ -1045,7 +1077,7 @@ func (s *Server) ListChatMessages(c *gin.Context) {
 	}
 	var list []model.ChatMessage
 	if err := s.DB.Where("post_id = ?", postID).Order("created_at ASC").Find(&list).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 		return
 	}
 	views, err := s.buildChatMessageViews(list)
@@ -1105,7 +1137,7 @@ func (s *Server) SendChatMessage(c *gin.Context) {
 		CreatedAt:   time.Now().UnixMilli(),
 	}
 	if err := s.DB.Create(&msg).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		serverError(c, err)
 		return
 	}
 	var senderMessageCount int64
@@ -1219,7 +1251,7 @@ func (s *Server) UpsertReviews(c *gin.Context) {
 		case "invalid review item", "review target not allowed", "duplicate review target":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			serverError(c, err)
 		}
 		return
 	}
