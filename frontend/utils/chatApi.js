@@ -21,11 +21,35 @@ function normalizeChatMessage(msg, fallbackCreatedAt) {
   }
 }
 
-function fetchChatMessages(postId) {
+function mergeChatMessages(existing, incoming) {
+  const byId = {}
+  ;(existing || []).concat(incoming || []).forEach((item) => {
+    if (!item || !item.id) return
+    byId[item.id] = item
+  })
+  return Object.keys(byId)
+    .map((id) => byId[id])
+    .sort((a, b) => {
+      const byCreatedAt = Number(a.createdAt || 0) - Number(b.createdAt || 0)
+      return byCreatedAt || String(a.id).localeCompare(String(b.id))
+    })
+}
+
+function fetchChatMessages(postId, options) {
   if (!postId) return Promise.resolve([])
+  const data = {}
+  const sinceCreatedAt = Number(options && options.sinceCreatedAt)
+  if (Number.isFinite(sinceCreatedAt) && sinceCreatedAt >= 0) {
+    data.sinceCreatedAt = sinceCreatedAt
+    const requestedLimit = Number(options && options.limit)
+    if (Number.isFinite(requestedLimit) && requestedLimit > 0) {
+      data.limit = Math.min(Math.floor(requestedLimit), 500)
+    }
+  }
   return request({
     url: '/chats/' + encodeURIComponent(postId) + '/messages',
     method: 'GET',
+    data,
   }).then((res) => {
     const list = Array.isArray(res && res.messages) ? res.messages : []
     return list
@@ -70,6 +94,7 @@ function connectChatRoom(postId, handlers) {
   let reconnectTimer = null
   let pollTimer = null
   let attempt = 0
+  let latestCreatedAt = Number(handlers && handlers.sinceCreatedAt) || 0
 
   function clearTimers() {
     if (reconnectTimer) {
@@ -82,16 +107,47 @@ function connectChatRoom(postId, handlers) {
     }
   }
 
+  function isUnauthorized(value) {
+    if (!value) return false
+    if (Number(value.statusCode) === 401 || Number(value.code) === 401) return true
+    const text = String(value.errMsg || value.reason || value.message || '')
+    return /(?:^|\D)401(?:\D|$)|unauthori[sz]ed/i.test(text)
+  }
+
+  function stopUnauthorized() {
+    if (closed) return
+    closed = true
+    clearTimers()
+    if (socket) {
+      try { socket.close({}) } catch (e) {}
+      socket = null
+    }
+    onStatusChange('unauthorized')
+  }
+
+  function deliver(message) {
+    if (!message || !message.id) return
+    latestCreatedAt = Math.max(latestCreatedAt, Number(message.createdAt) || 0)
+    onMessage(message)
+  }
+
   function startPolling() {
     if (closed || pollTimer) return
     onStatusChange('polling')
     pollTimer = setInterval(() => {
-      fetchChatMessages(postId)
+      fetchChatMessages(postId, {
+        sinceCreatedAt: latestCreatedAt,
+        limit: 200,
+      })
         .then((messages) => {
           if (closed) return
-          messages.forEach((item) => onMessage(item))
+          messages.forEach(deliver)
         })
-        .catch(() => {})
+        .catch((err) => {
+          if (isUnauthorized(err)) {
+            stopUnauthorized()
+          }
+        })
     }, POLL_INTERVAL)
   }
 
@@ -110,7 +166,7 @@ function connectChatRoom(postId, handlers) {
     if (closed) return
     const token = getAccessToken()
     if (!token) {
-      startPolling()
+      stopUnauthorized()
       return
     }
 
@@ -155,18 +211,26 @@ function connectChatRoom(postId, handlers) {
         return
       }
       if (!payload || payload.type !== 'chat_message' || !payload.message) return
-      onMessage(normalizeChatMessage(payload.message, Date.now()))
+      deliver(normalizeChatMessage(payload.message, Date.now()))
     })
 
-    task.onError(() => {
+    task.onError((event) => {
       if (closed) return
+      if (isUnauthorized(event)) {
+        stopUnauthorized()
+        return
+      }
       socket = null
       startPolling()
       scheduleReconnect()
     })
 
-    task.onClose(() => {
+    task.onClose((event) => {
       if (closed) return
+      if (isUnauthorized(event)) {
+        stopUnauthorized()
+        return
+      }
       socket = null
       startPolling()
       scheduleReconnect()
@@ -176,6 +240,9 @@ function connectChatRoom(postId, handlers) {
   open()
 
   return {
+    get closed() {
+      return closed
+    },
     close() {
       closed = true
       clearTimers()
@@ -191,4 +258,5 @@ module.exports = {
   fetchChatMessages,
   sendChatMessage,
   connectChatRoom,
+  mergeChatMessages,
 }

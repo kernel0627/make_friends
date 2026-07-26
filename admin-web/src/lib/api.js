@@ -1,4 +1,5 @@
 import { clearSession, getSession } from "./session";
+import { handleUnauthorizedResponse } from "./unauthorized";
 
 const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
 
@@ -34,13 +35,11 @@ export async function apiRequest(path, options = {}) {
     headers,
   });
 
-  if (response.status === 401) {
-    clearSession();
-    // Without this the operator is left on a page where every action fails.
-    if (!window.location.pathname.startsWith("/login")) {
-      window.location.assign("/login");
-    }
-  }
+  handleUnauthorizedResponse(response.status, {
+    clearSession,
+    pathname: window.location.pathname,
+    redirect: (path) => window.location.assign(path),
+  });
 
   const contentType = response.headers.get("content-type") || "";
   const raw = await response.text();

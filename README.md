@@ -259,6 +259,8 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `POST /api/v1/posts/smart-draft` | DeepSeek 智能活动草稿 |
 | `/api/v1/admin/*` | 管理后台接口 |
 
+聊天历史 `GET /api/v1/chats/:postId/messages` 不带游标时返回完整历史；增量同步可传 `sinceCreatedAt`（毫秒时间戳，包含边界）和 `limit`（默认 `200`、最大 `500`），客户端需按消息 ID 去重。
+
 ## 数据与安全
 
 - SQLite 数据位于 `backend/data/app.db`，属于本地运行状态，不进入 Git。
