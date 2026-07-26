@@ -224,17 +224,6 @@ func trustedProxies() []string {
 	return out
 }
 
-// hotFeedCandidateLimit caps how many recent active posts the ranker scores.
-// Large enough that paging through the hot feed stays useful, small enough
-// that per-request cost does not track table size.
-func hotFeedCandidateLimit() int {
-	limit := envInt("HOT_FEED_CANDIDATES", 500)
-	if limit <= 0 {
-		limit = 500
-	}
-	return limit
-}
-
 func envInt(key string, fallback int) int {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
@@ -800,19 +789,9 @@ func (s *Server) ListPosts(c *gin.Context) {
 	hasMore := false
 	nextPage := 0
 	if sortBy == "hot" {
-		// Recall then rank: score a bounded, recent candidate set instead of
-		// every active post. Ranking is O(candidates) in CPU and memory on the
-		// single SQLite connection, so an unbounded set made every hot-feed
-		// request slower as the table grew.
-		candidateLimit := hotFeedCandidateLimit()
-		if err := query.Order("created_at DESC").Limit(candidateLimit + 1).Find(&posts).Error; err != nil {
+		if err := query.Find(&posts).Error; err != nil {
 			serverError(c, err)
 			return
-		}
-		if len(posts) > candidateLimit {
-			// Never truncate silently: this bounds what the ranker can surface.
-			log.Printf("hot feed candidates truncated to %d (more active posts exist)", candidateLimit)
-			posts = posts[:candidateLimit]
 		}
 		var err error
 		posts, recommendationMap, feedRequestID, err = s.buildRecommendedFeed(posts, viewerID, viewerLocation, nowMS)
