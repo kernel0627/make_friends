@@ -340,6 +340,7 @@ func ensureSettlementsTx(tx *gorm.DB, post model.Post, relations []participantRe
 				"participant_decision":     row.ParticipantDecision,
 				"author_decision":          row.AuthorDecision,
 				"final_status":             row.FinalStatus,
+				"admin_resolution":         row.AdminResolution,
 				"participant_note":         row.ParticipantNote,
 				"author_note":              row.AuthorNote,
 				"participant_confirmed_at": row.ParticipantConfirmedAt,
@@ -363,6 +364,12 @@ func ensureSettlementsTx(tx *gorm.DB, post model.Post, relations []participantRe
 }
 
 func resolveFinalStatus(post model.Post, relation participantRelation, row model.PostParticipantSettlement, nowMS int64) string {
+	// An admin ruling on a dispute is the final word: it must survive every
+	// later recalculation, otherwise the parties' own conflicting decisions
+	// would immediately re-derive the dispute and reopen the case.
+	if adminResolution := strings.TrimSpace(row.AdminResolution); adminResolution != "" {
+		return adminResolution
+	}
 	if post.CancelledAt > 0 {
 		return SettlementCancelled
 	}
@@ -565,8 +572,20 @@ func reconcileCreditLedgers(tx *gorm.DB, postID string, desired []ledgerSpec, no
 		LedgerReviewCompleted,
 		LedgerReviewMissed,
 	}
-	if err := tx.Where("post_id = ? AND source_type IN ?", postID, managedTypes).
-		Delete(&model.CreditLedger{}).Error; err != nil {
+	// Remove only the managed rows that are no longer desired, then upsert the
+	// rest. Recreating every row on each recalculation would reset created_at,
+	// which destroys the audit trail and keeps sliding the 180-day credit
+	// window forward — and recalculation runs far more often than settlements
+	// actually change.
+	keep := make([]string, 0, len(desired))
+	for _, item := range desired {
+		keep = append(keep, item.UserID+"\x00"+item.SourceType)
+	}
+	stale := tx.Where("post_id = ? AND source_type IN ?", postID, managedTypes)
+	if len(keep) > 0 {
+		stale = stale.Where("(user_id || ? || source_type) NOT IN ?", "\x00", keep)
+	}
+	if err := stale.Delete(&model.CreditLedger{}).Error; err != nil {
 		return err
 	}
 	if len(desired) == 0 {
@@ -585,7 +604,15 @@ func reconcileCreditLedgers(tx *gorm.DB, postID string, desired []ledgerSpec, no
 			UpdatedAt:  nowMS,
 		})
 	}
-	return tx.Create(&rows).Error
+	return tx.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "user_id"}, {Name: "post_id"}, {Name: "source_type"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"delta":      gorm.Expr("excluded.delta"),
+			"status":     gorm.Expr("excluded.status"),
+			"note":       gorm.Expr("excluded.note"),
+			"updated_at": gorm.Expr("excluded.updated_at"),
+		}),
+	}).Create(&rows).Error
 }
 
 func loadLedgerTotalsByUser(tx *gorm.DB, postID string) (map[string]int, error) {

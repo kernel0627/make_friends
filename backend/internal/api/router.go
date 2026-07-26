@@ -43,6 +43,10 @@ type Server struct {
 const contextUserIDKey = "userID"
 const contextTokenJTIKey = "tokenJTI"
 
+// errRefreshTokenReplayed signals that a refresh token was already rotated by
+// a concurrent or replayed request.
+var errRefreshTokenReplayed = errors.New("refresh token already rotated")
+
 func NewRouter(db *gorm.DB) *gin.Engine {
 	useRedis := envBool("USE_REDIS", false)
 	redisClient := buildRedisClient(useRedis)
@@ -537,6 +541,11 @@ func (s *Server) RefreshToken(c *gin.Context) {
 
 	authResp, err := s.rotateRefresh(record)
 	if err != nil {
+		if errors.Is(err, errRefreshTokenReplayed) {
+			log.Printf("refresh rejected: token already rotated uid=%s", record.UserID)
+			fail(c, http.StatusUnauthorized, "REFRESH_TOKEN_EXPIRED", "refresh token expired")
+			return
+		}
 		log.Printf("refresh failed: rotate error uid=%s err=%v", record.UserID, err)
 		fail(c, http.StatusInternalServerError, "REFRESH_FAILED", "refresh failed")
 		return
@@ -1422,10 +1431,16 @@ func (s *Server) rotateRefresh(record model.RefreshToken) (authTokens, error) {
 	returnTokens := authTokens{}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UnixMilli()
-		if err := tx.Model(&model.RefreshToken{}).
+		// Revoking is the claim on this token: if no row changed, another
+		// request already rotated it and this one is a replay.
+		result := tx.Model(&model.RefreshToken{}).
 			Where("id = ? AND revoked_at = 0", record.ID).
-			Updates(map[string]any{"revoked_at": now, "updated_at": now}).Error; err != nil {
-			return err
+			Updates(map[string]any{"revoked_at": now, "updated_at": now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errRefreshTokenReplayed
 		}
 
 		role := s.resolveUserRole(record.UserID)

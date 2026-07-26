@@ -103,13 +103,20 @@ func (s *Server) CancelParticipation(c *gin.Context) {
 		if err := tx.Save(&relation).Error; err != nil {
 			return err
 		}
+		// Conditional decrement: clause.Locking is a no-op on SQLite, so a
+		// read-modify-write here would lose updates under concurrency.
+		if err := tx.Model(&model.Post{}).
+			Where("id = ? AND current_count > 1", postID).
+			Updates(map[string]any{
+				"current_count": gorm.Expr("current_count - 1"),
+				"updated_at":    now,
+			}).Error; err != nil {
+			return err
+		}
 		if post.CurrentCount > 1 {
 			post.CurrentCount--
 		}
 		post.UpdatedAt = now
-		if err := tx.Save(&post).Error; err != nil {
-			return err
-		}
 		if err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "post_id"}, {Name: "user_id"}},
 			DoUpdates: clause.Assignments(map[string]any{

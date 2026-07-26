@@ -368,16 +368,50 @@ func (s *Server) joinPostTx(tx *gorm.DB, postID, userID string, now int64) (mode
 	}
 
 	var existed model.PostParticipant
-	if err := tx.First(&existed, "post_id = ? AND user_id = ?", postID, userID).Error; err == nil {
-		return post, errJoinAlreadyJoined
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	rejoining := false
+	err := tx.First(&existed, "post_id = ? AND user_id = ?", postID, userID).Error
+	switch {
+	case err == nil:
+		// A previously cancelled participant is allowed back in; only an
+		// active relation counts as "already joined".
+		if score.NormalizedParticipantStatus(existed.Status) == score.ParticipantStatusActive {
+			return post, errJoinAlreadyJoined
+		}
+		rejoining = true
+	case !errors.Is(err, gorm.ErrRecordNotFound):
 		return post, err
 	}
 
 	if post.CurrentCount >= post.MaxCount {
 		return post, errJoinPostFull
 	}
-	if err := tx.Create(&model.PostParticipant{
+
+	if rejoining {
+		if err := tx.Model(&model.PostParticipant{}).
+			Where("post_id = ? AND user_id = ?", postID, userID).
+			Updates(map[string]any{
+				"status":       score.ParticipantStatusActive,
+				"joined_at":    now,
+				"cancelled_at": 0,
+			}).Error; err != nil {
+			return post, err
+		}
+		// Clear the settlement row left behind by the cancellation so the
+		// rejoined participant starts from pending again.
+		if err := tx.Model(&model.PostParticipantSettlement{}).
+			Where("post_id = ? AND user_id = ?", postID, userID).
+			Updates(map[string]any{
+				"participant_decision":     "",
+				"author_decision":          "",
+				"final_status":             score.SettlementPending,
+				"participant_note":         "",
+				"participant_confirmed_at": 0,
+				"settled_at":               0,
+				"updated_at":               now,
+			}).Error; err != nil {
+			return post, err
+		}
+	} else if err := tx.Create(&model.PostParticipant{
 		PostID:   postID,
 		UserID:   userID,
 		Status:   score.ParticipantStatusActive,
@@ -386,10 +420,22 @@ func (s *Server) joinPostTx(tx *gorm.DB, postID, userID string, now int64) (mode
 		return post, err
 	}
 
+	// Conditional update rather than a read-modify-write: the SQLite driver
+	// silently drops clause.Locking, so the row lock above is not enforced.
+	result := tx.Model(&model.Post{}).
+		Where("id = ? AND current_count < max_count", postID).
+		Updates(map[string]any{
+			"current_count": gorm.Expr("current_count + 1"),
+			"updated_at":    now,
+		})
+	if result.Error != nil {
+		return post, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return post, errJoinPostFull
+	}
+
 	post.CurrentCount++
 	post.UpdatedAt = now
-	if err := tx.Save(&post).Error; err != nil {
-		return post, err
-	}
 	return post, nil
 }

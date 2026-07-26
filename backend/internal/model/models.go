@@ -112,6 +112,7 @@ type PostParticipantSettlement struct {
 	ParticipantDecision    string `gorm:"size:16;not null;default:''" json:"participantDecision"`
 	AuthorDecision         string `gorm:"size:16;not null;default:''" json:"authorDecision"`
 	FinalStatus            string `gorm:"size:16;not null;default:pending;index" json:"finalStatus"`
+	AdminResolution        string `gorm:"size:16;not null;default:''" json:"adminResolution"`
 	ParticipantNote        string `gorm:"type:text;not null;default:''" json:"participantNote"`
 	AuthorNote             string `gorm:"type:text;not null;default:''" json:"authorNote"`
 	ParticipantConfirmedAt int64  `gorm:"not null;default:0" json:"participantConfirmedAt"`
