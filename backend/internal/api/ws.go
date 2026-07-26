@@ -17,6 +17,11 @@ import (
 const (
 	onlineSessionTTL = 90 * time.Second
 	onlineHeartBeat  = 30 * time.Second
+	// wsReadLimit caps a single inbound frame. Clients only send small
+	// keepalive envelopes, so this is generous.
+	wsReadLimit   = 8 * 1024
+	wsWriteWait   = 10 * time.Second
+	wsReadTimeout = 3 * onlineHeartBeat
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -32,10 +37,13 @@ type wsIncoming struct {
 }
 
 type wsEvent struct {
-	Type    string            `json:"type"`
-	Message model.ChatMessage `json:"message,omitempty"`
-	Code    string            `json:"code,omitempty"`
-	Error   string            `json:"error,omitempty"`
+	Type string `json:"type"`
+	// Message carries the same shape the REST chat endpoints return, so a
+	// client can render a pushed message without a follow-up fetch for the
+	// sender's profile.
+	Message *chatMessageView `json:"message,omitempty"`
+	Code    string           `json:"code,omitempty"`
+	Error   string           `json:"error,omitempty"`
 }
 
 func (s *Server) WSChat(c *gin.Context) {
@@ -74,6 +82,10 @@ func (s *Server) WSChat(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	// Without these a slow or silent peer holds a goroutine and a connection
+	// open indefinitely, and an oversized frame is read into memory whole.
+	conn.SetReadLimit(wsReadLimit)
+	_ = conn.SetReadDeadline(time.Now().Add(wsReadTimeout))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -94,6 +106,7 @@ func (s *Server) WSChat(c *gin.Context) {
 				readErrCh <- err
 				return
 			}
+			_ = conn.SetReadDeadline(time.Now().Add(wsReadTimeout))
 			s.touchOnline(ctx, userID, postID)
 		}
 	}()
@@ -120,6 +133,7 @@ func (s *Server) WSChat(c *gin.Context) {
 				log.Printf("ws payload decode failed: %v", err)
 				continue
 			}
+			_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 			if err := conn.WriteJSON(event); err != nil {
 				s.clearOnline(context.Background(), userID, postID)
 				return
@@ -169,7 +183,12 @@ func (s *Server) publishChatMessage(ctx context.Context, message model.ChatMessa
 	if !s.UseRedis || s.RedisClient == nil {
 		return
 	}
-	event := wsEvent{Type: "chat_message", Message: message}
+	views, err := s.buildChatMessageViews([]model.ChatMessage{message})
+	if err != nil || len(views) == 0 {
+		log.Printf("ws publish skipped: build view failed post=%s err=%v", message.PostID, err)
+		return
+	}
+	event := wsEvent{Type: "chat_message", Message: &views[0]}
 	raw, err := json.Marshal(event)
 	if err != nil {
 		return

@@ -9,6 +9,7 @@ import {
   restoreAdminPost,
   updateAdminPost,
 } from "../lib/api";
+import usePagedList from "../lib/usePagedList";
 import { getPostStatusLabel, getPostStatusTone, getTimeModeLabel } from "../lib/display";
 import { formatDateTime } from "../lib/format";
 
@@ -90,26 +91,20 @@ function formatTimeText(post) {
 }
 
 export default function PostsPage() {
-  const [filters, setFilters] = useState(initialFilters);
-  const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
+  const {
+    filters,
+    setFilters,
+    updateFilters,
+    data,
+    loading,
+    error,
+    setError,
+    refresh: refreshList,
+  } = usePagedList(fetchAdminPosts, initialFilters);
   const [detail, setDetail] = useState(null);
   const [form, setForm] = useState(emptyPostForm);
   const [createForm, setCreateForm] = useState(emptyPostForm);
   const [showCreate, setShowCreate] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    refreshList();
-  }, [filters]);
-
-  async function refreshList() {
-    try {
-      const payload = await fetchAdminPosts(filters);
-      setData(payload);
-    } catch (err) {
-      setError(err.message || "加载活动列表失败");
-    }
-  }
 
   async function openDetail(postId) {
     try {
@@ -165,10 +160,6 @@ export default function PostsPage() {
     } catch (err) {
       setError(err.message || "恢复活动失败");
     }
-  }
-
-  function updateFilters(patch) {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page || 1 }));
   }
 
   function updateTimeInfo(target, key, value) {
@@ -308,7 +299,7 @@ export default function PostsPage() {
               ))}
               {!data.items?.length ? (
                 <tr>
-                  <td colSpan="6" className="empty-cell">当前没有活动数据</td>
+                  <td colSpan="6" className="empty-cell">{loading ? "加载中..." : "当前没有活动数据"}</td>
                 </tr>
               ) : null}
             </tbody>

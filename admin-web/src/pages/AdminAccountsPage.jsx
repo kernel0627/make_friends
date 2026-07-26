@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Modal from "../components/Modal";
 import PaginationBar from "../components/PaginationBar";
 import {
@@ -11,6 +11,7 @@ import {
   restoreAdminAccount,
   updateAdminAccount,
 } from "../lib/api";
+import usePagedList from "../lib/usePagedList";
 import { formatDateTime, formatDelta, formatScore } from "../lib/format";
 import { getLedgerSourceLabel, getRoleLabel, getUserStatusLabel, getUserStatusTone } from "../lib/display";
 import { getSession } from "../lib/session";
@@ -20,28 +21,22 @@ const initialFilters = { page: 1, pageSize: 20, status: "all", keyword: "" };
 export default function AdminAccountsPage() {
   const session = getSession();
   const canManage = Boolean(session?.user?.rootAdmin);
-  const [filters, setFilters] = useState(initialFilters);
-  const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
+  const {
+    filters,
+    setFilters,
+    updateFilters,
+    data,
+    loading,
+    error,
+    setError,
+    refresh: refreshList,
+  } = usePagedList(fetchAdminAccounts, initialFilters);
   const [selected, setSelected] = useState(null);
   const [ledger, setLedger] = useState([]);
-  const [createForm, setCreateForm] = useState({ nickname: "", password: "123456" });
+  const [createForm, setCreateForm] = useState({ nickname: "", password: "" });
   const [editForm, setEditForm] = useState({ nickname: "" });
-  const [passwordForm, setPasswordForm] = useState({ password: "123456" });
+  const [passwordForm, setPasswordForm] = useState({ password: "" });
   const [showCreate, setShowCreate] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    refreshList();
-  }, [filters]);
-
-  async function refreshList() {
-    try {
-      const payload = await fetchAdminAccounts(filters);
-      setData(payload);
-    } catch (err) {
-      setError(err.message || "加载管理员账号失败");
-    }
-  }
 
   async function selectAccount(item) {
     try {
@@ -52,7 +47,7 @@ export default function AdminAccountsPage() {
       setSelected(detail);
       setLedger(ledgerPayload.items || []);
       setEditForm({ nickname: detail.user?.nickName || "" });
-      setPasswordForm({ password: "123456" });
+      setPasswordForm({ password: "" });
     } catch (err) {
       setError(err.message || "加载管理员详情失败");
     }
@@ -63,7 +58,7 @@ export default function AdminAccountsPage() {
     try {
       await createAdminAccount(createForm);
       setShowCreate(false);
-      setCreateForm({ nickname: "", password: "123456" });
+      setCreateForm({ nickname: "", password: "" });
       await refreshList();
     } catch (err) {
       setError(err.message || "创建管理员失败");
@@ -87,7 +82,7 @@ export default function AdminAccountsPage() {
     if (!selected?.user?.id) return;
     try {
       await resetAdminAccountPassword(selected.user.id, passwordForm);
-      setPasswordForm({ password: "123456" });
+      setPasswordForm({ password: "" });
     } catch (err) {
       setError(err.message || "重置管理员密码失败");
     }
@@ -113,10 +108,6 @@ export default function AdminAccountsPage() {
     } catch (err) {
       setError(err.message || "恢复管理员失败");
     }
-  }
-
-  function updateFilters(patch) {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page || 1 }));
   }
 
   const isSelf = selected?.user?.id === session?.user?.id;
@@ -187,7 +178,7 @@ export default function AdminAccountsPage() {
               ))}
               {!data.items?.length ? (
                 <tr>
-                  <td colSpan="6" className="empty-cell">当前没有管理员账号</td>
+                  <td colSpan="6" className="empty-cell">{loading ? "加载中..." : "当前没有管理员账号"}</td>
                 </tr>
               ) : null}
             </tbody>

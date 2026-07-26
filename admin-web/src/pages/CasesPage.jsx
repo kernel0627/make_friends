@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import PaginationBar from "../components/PaginationBar";
 import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase } from "../lib/api";
+import usePagedList from "../lib/usePagedList";
 import {
   getCaseResolutionLabel,
   getCaseStatusLabel,
@@ -36,24 +37,18 @@ function ComparisonCard({ title, item }) {
 }
 
 export default function CasesPage() {
-  const [filters, setFilters] = useState(initialFilters);
-  const [listData, setListData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
+  const {
+    filters,
+    setFilters,
+    updateFilters,
+    data: listData,
+    loading,
+    error,
+    setError,
+    refresh: refreshList,
+  } = usePagedList(fetchAdminCases, initialFilters);
   const [detail, setDetail] = useState(null);
-  const [error, setError] = useState("");
   const [resolveForm, setResolveForm] = useState({ resolution: "completed", note: "" });
-
-  useEffect(() => {
-    refreshList();
-  }, [filters]);
-
-  async function refreshList() {
-    try {
-      const payload = await fetchAdminCases(filters);
-      setListData(payload);
-    } catch (err) {
-      setError(err.message || "加载争议案例失败");
-    }
-  }
 
   async function openDetail(id) {
     try {
@@ -75,10 +70,6 @@ export default function CasesPage() {
     } catch (err) {
       setError(err.message || "结案失败");
     }
-  }
-
-  function updateFilters(patch) {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page || 1 }));
   }
 
   return (
@@ -137,7 +128,7 @@ export default function CasesPage() {
               ))}
               {!listData.items?.length ? (
                 <tr>
-                  <td colSpan="5" className="empty-cell">当前没有争议案例</td>
+                  <td colSpan="5" className="empty-cell">{loading ? "加载中..." : "当前没有争议案例"}</td>
                 </tr>
               ) : null}
             </tbody>

@@ -28,6 +28,16 @@ function requestWithRetry(opts) {
       !!getRefreshToken()
 
     if (!canRetry) {
+      // A 401 we cannot recover from means the session is gone. Without this
+      // the user sits on a "logged in" UI where every request fails.
+      const unrecoverable401 =
+        err &&
+        err.statusCode === 401 &&
+        !opts.skipAuthRefresh &&
+        !isAuthPath(opts.url || '')
+      if (unrecoverable401) {
+        handleAuthExpired()
+      }
       return Promise.reject(err)
     }
 
@@ -75,7 +85,8 @@ function doRequest(opts) {
 
 function buildHttpError(res) {
   const data = (res && res.data) || {}
-  const err = new Error(data.error || ('请求失败（' + (res ? res.statusCode : '-') + '）'))
+  const message = data.error || data.message || ''
+  const err = new Error(message || ('请求失败（' + (res ? res.statusCode : '-') + '）'))
   err.statusCode = res ? res.statusCode : 0
   err.code = data.code || ''
   return err

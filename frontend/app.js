@@ -19,7 +19,14 @@ App({
         const user = res && res.user ? res.user : null
         this.globalData.currentUser = user
         saveCurrentUser(user)
-      }).catch(() => {
+      }).catch((err) => {
+        // Only an actual rejection by the server invalidates the session.
+        // A timeout or offline start must keep the cached login, otherwise
+        // launching the app without network silently logs the user out.
+        const statusCode = (err && err.statusCode) || 0
+        if (statusCode !== 401 && statusCode !== 403) {
+          return
+        }
         clearAuthStorage()
         this.globalData.currentUser = null
         saveCurrentUser(null)

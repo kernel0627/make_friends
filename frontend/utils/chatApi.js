@@ -1,4 +1,9 @@
-const { request } = require('./http')
+const { request, getAccessToken } = require('./http')
+const { WS_BASE_URL } = require('./config')
+
+const RECONNECT_BASE_DELAY = 1000
+const RECONNECT_MAX_DELAY = 15000
+const POLL_INTERVAL = 5000
 
 function normalizeChatMessage(msg, fallbackCreatedAt) {
   const createdAt = Number(msg && msg.createdAt) || fallbackCreatedAt || Date.now()
@@ -50,7 +55,140 @@ function formatChatTime(timestamp) {
   return hh + ':' + mm
 }
 
+// connectChatRoom opens a live connection for a post's chat room and calls
+// handlers.onMessage for each incoming message. The server requires Redis for
+// websockets, so when the socket cannot be established this falls back to
+// polling the REST endpoint rather than leaving the room silent.
+//
+// Returns a handle with close(); callers must invoke it on page unload.
+function connectChatRoom(postId, handlers) {
+  const onMessage = (handlers && handlers.onMessage) || function() {}
+  const onStatusChange = (handlers && handlers.onStatusChange) || function() {}
+
+  let closed = false
+  let socket = null
+  let reconnectTimer = null
+  let pollTimer = null
+  let attempt = 0
+
+  function clearTimers() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  function startPolling() {
+    if (closed || pollTimer) return
+    onStatusChange('polling')
+    pollTimer = setInterval(() => {
+      fetchChatMessages(postId)
+        .then((messages) => {
+          if (closed) return
+          messages.forEach((item) => onMessage(item))
+        })
+        .catch(() => {})
+    }, POLL_INTERVAL)
+  }
+
+  function scheduleReconnect() {
+    if (closed || reconnectTimer) return
+    // Exponential backoff, capped. Polling covers the gap meanwhile.
+    const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, attempt), RECONNECT_MAX_DELAY)
+    attempt += 1
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      open()
+    }, delay)
+  }
+
+  function open() {
+    if (closed) return
+    const token = getAccessToken()
+    if (!token) {
+      startPolling()
+      return
+    }
+
+    const url = WS_BASE_URL + '/ws/chat?postId=' + encodeURIComponent(postId)
+    let task = null
+    try {
+      task = wx.connectSocket({
+        url,
+        header: { Authorization: 'Bearer ' + token },
+      })
+    } catch (e) {
+      startPolling()
+      scheduleReconnect()
+      return
+    }
+    if (!task) {
+      startPolling()
+      scheduleReconnect()
+      return
+    }
+    socket = task
+
+    task.onOpen(() => {
+      if (closed) {
+        try { task.close({}) } catch (e) {}
+        return
+      }
+      attempt = 0
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+      }
+      onStatusChange('online')
+    })
+
+    task.onMessage((res) => {
+      if (closed) return
+      let payload = null
+      try {
+        payload = JSON.parse((res && res.data) || '{}')
+      } catch (e) {
+        return
+      }
+      if (!payload || payload.type !== 'chat_message' || !payload.message) return
+      onMessage(normalizeChatMessage(payload.message, Date.now()))
+    })
+
+    task.onError(() => {
+      if (closed) return
+      socket = null
+      startPolling()
+      scheduleReconnect()
+    })
+
+    task.onClose(() => {
+      if (closed) return
+      socket = null
+      startPolling()
+      scheduleReconnect()
+    })
+  }
+
+  open()
+
+  return {
+    close() {
+      closed = true
+      clearTimers()
+      if (socket) {
+        try { socket.close({}) } catch (e) {}
+        socket = null
+      }
+    },
+  }
+}
+
 module.exports = {
   fetchChatMessages,
   sendChatMessage,
+  connectChatRoom,
 }

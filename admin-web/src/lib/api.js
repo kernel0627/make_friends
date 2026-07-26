@@ -24,20 +24,36 @@ export async function apiRequest(path, options = {}) {
     headers.Authorization = `Bearer ${session.token}`;
   }
 
-  const url = path.startsWith("http://") || path.startsWith("https://") ? path : `${API_BASE}${path}`;
-  const response = await fetch(url, {
+  // Only same-API paths are allowed: accepting an absolute URL here would
+  // attach the admin bearer token to an arbitrary host.
+  if (/^[a-z]+:\/\//i.test(path)) {
+    throw new Error("apiRequest only accepts paths on the configured API base");
+  }
+  const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   });
 
   if (response.status === 401) {
     clearSession();
+    // Without this the operator is left on a page where every action fails.
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.assign("/login");
+    }
   }
 
   const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
+  const raw = await response.text();
+  let payload = raw;
+  if (contentType.includes("application/json") && raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      // Fall through with the raw body so the real status drives the error
+      // message instead of a JSON parse failure.
+      payload = raw;
+    }
+  }
 
   if (!response.ok) {
     const message =

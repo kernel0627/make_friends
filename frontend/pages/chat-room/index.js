@@ -1,4 +1,4 @@
-const { fetchChatMessages, sendChatMessage } = require('../../utils/chatApi')
+const { fetchChatMessages, sendChatMessage, connectChatRoom } = require('../../utils/chatApi')
 const { ensurePageLogin, loginWithWechat, gotoLoginPage, gotoRegisterPage } = require('../../utils/auth')
 const { openPage } = require('../../utils/navigation')
 const { saveChatMessages } = require('../../utils/store')
@@ -22,23 +22,65 @@ Page({
     this.setData({ postId: id, title })
     if (ensurePageLogin(this)) {
       this.loadMessages()
+      this.openLiveConnection()
     }
   },
 
   onShow() {
     if (ensurePageLogin(this) && this.data.postId) {
       this.loadMessages()
+      this.openLiveConnection()
     }
+  },
+
+  onHide() {
+    this.closeLiveConnection()
+  },
+
+  onUnload() {
+    this.closeLiveConnection()
+  },
+
+  openLiveConnection() {
+    if (this._chatConnection || !this.data.postId) return
+    this._chatConnection = connectChatRoom(this.data.postId, {
+      onMessage: (message) => this.appendMessage(message),
+    })
+  },
+
+  closeLiveConnection() {
+    if (!this._chatConnection) return
+    this._chatConnection.close()
+    this._chatConnection = null
+  },
+
+  // appendMessage is the single entry point for messages arriving from the
+  // socket, polling, or our own send, so duplicates are dropped in one place.
+  appendMessage(message) {
+    if (!message || !message.id) return
+    const existing = this.data.messages || []
+    if (existing.some((item) => item.id === message.id)) return
+
+    const next = existing.concat(message).sort((a, b) => a.createdAt - b.createdAt)
+    this.persistMessages(next)
+    this.setData({
+      messages: next,
+      lastMsgId: next.length ? next[next.length - 1].id : '',
+    })
+  },
+
+  persistMessages(messages) {
+    const app = getApp()
+    if (!app.globalData.chatMessages || typeof app.globalData.chatMessages !== 'object') {
+      app.globalData.chatMessages = {}
+    }
+    app.globalData.chatMessages[this.data.postId] = messages.slice()
+    saveChatMessages(app.globalData.chatMessages)
   },
 
   loadMessages() {
     fetchChatMessages(this.data.postId).then((messages) => {
-      const app = getApp()
-      if (!app.globalData.chatMessages || typeof app.globalData.chatMessages !== 'object') {
-        app.globalData.chatMessages = {}
-      }
-      app.globalData.chatMessages[this.data.postId] = messages.slice()
-      saveChatMessages(app.globalData.chatMessages)
+      this.persistMessages(messages)
       this.setData({
         messages,
         lastMsgId: messages.length ? messages[messages.length - 1].id : '',
@@ -79,19 +121,9 @@ Page({
       sender: user,
       clientMsgId: 'client_' + Date.now(),
     }).then((msg) => {
-      const next = this.data.messages.concat(msg)
-      const app = getApp()
-      if (!app.globalData.chatMessages || typeof app.globalData.chatMessages !== 'object') {
-        app.globalData.chatMessages = {}
-      }
-      app.globalData.chatMessages[this.data.postId] = next.slice()
-      saveChatMessages(app.globalData.chatMessages)
-      this.setData({
-        messages: next,
-        inputText: '',
-        lastMsgId: msg.id,
-        sending: false,
-      })
+      // The socket echoes our own message back; appendMessage dedupes by id.
+      this.appendMessage(msg)
+      this.setData({ inputText: '', sending: false })
     }).catch((err) => {
       this.setData({ sending: false })
       wx.showToast({ title: (err && err.message) || '发送失败，请重试', icon: 'none' })
@@ -114,7 +146,10 @@ Page({
   onWechatLogin() {
     loginWithWechat().then(() => {
       this.setData({ showLoginModal: false })
-      if (ensurePageLogin(this)) this.loadMessages()
+      if (ensurePageLogin(this)) {
+        this.loadMessages()
+        this.openLiveConnection()
+      }
       wx.showToast({ title: '登录成功', icon: 'success' })
     }).catch((err) => {
       wx.showToast({ title: (err && err.message) || '登录失败', icon: 'none' })
