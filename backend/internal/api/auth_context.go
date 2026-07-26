@@ -29,29 +29,26 @@ func mustUserRootAdmin(c *gin.Context) bool {
 	return rootAdmin
 }
 
-func optionalUserRoleFromRequest(c *gin.Context, jwtSecret string) string {
-	_, role, _, ok := userIDFromRequest(c, jwtSecret)
-	if !ok {
-		return ""
+func (s *Server) resolveUserRole(userID string) string {
+	role, _, _, found := s.resolveUserAccess(userID)
+	if !found {
+		return model.UserRoleUser
 	}
-	return model.NormalizeUserRole(role)
-}
-
-func (s *Server) resolveUserRole(userID, claimedRole string) string {
-	role, _, _ := s.resolveUserAccess(userID, claimedRole)
 	return role
 }
 
-func (s *Server) resolveUserAccess(userID, claimedRole string) (string, bool, bool) {
-	role := model.NormalizeUserRole(claimedRole)
+// resolveUserAccess returns the role/root-admin/deleted flags stored in the
+// database. The caller must treat found == false as "no such user" — role
+// claims from tokens or requests are never trusted here.
+func (s *Server) resolveUserAccess(userID string) (string, bool, bool, bool) {
 	if strings.TrimSpace(userID) == "" {
-		return role, false, false
+		return model.UserRoleUser, false, false, false
 	}
 	var user model.User
-	if err := s.DB.Select("role", "root_admin", "deleted_at").First(&user, "id = ?", userID).Error; err == nil {
-		return model.NormalizeUserRole(user.Role), user.RootAdmin, user.DeletedAt > 0
+	if err := s.DB.Select("role", "root_admin", "deleted_at").First(&user, "id = ?", userID).Error; err != nil {
+		return model.UserRoleUser, false, false, false
 	}
-	return role, false, false
+	return model.NormalizeUserRole(user.Role), user.RootAdmin, user.DeletedAt > 0, true
 }
 
 func (s *Server) RequireAdmin() gin.HandlerFunc {

@@ -31,8 +31,11 @@ type errResp struct {
 	Error string `json:"error"`
 }
 
+const testJWTSecret = "router_test_secret"
+
 func openRouterTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	t.Setenv("JWT_SECRET", testJWTSecret)
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -64,6 +67,46 @@ func openRouterTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// ensureTestUser creates a minimal user row when the test has not seeded one
+// itself; RequireAuth rejects tokens whose user does not exist in the DB.
+func ensureTestUser(t *testing.T, db *gorm.DB, userID string) {
+	t.Helper()
+	var count int64
+	if err := db.Model(&model.User{}).Where("id = ?", userID).Count(&count).Error; err != nil {
+		t.Fatalf("lookup test user failed: %v", err)
+	}
+	if count > 0 {
+		return
+	}
+	now := time.Now().UnixMilli()
+	user := model.User{
+		ID:          userID,
+		Platform:    "test",
+		OpenID:      "test_" + userID,
+		Nickname:    userID,
+		Role:        model.UserRoleUser,
+		CreditScore: 100,
+		RatingScore: 5,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create test user failed: %v", err)
+	}
+}
+
+// bearerFor returns an Authorization header value carrying a real JWT for
+// userID, creating the user row if needed.
+func bearerFor(t *testing.T, db *gorm.DB, userID string) string {
+	t.Helper()
+	ensureTestUser(t, db, userID)
+	token, err := auth.SignToken(userID, testJWTSecret, 1)
+	if err != nil {
+		t.Fatalf("sign test token failed: %v", err)
+	}
+	return "Bearer " + token
+}
+
 func TestCreatePostRequiresAuth(t *testing.T) {
 	db := openRouterTestDB(t)
 	router := NewRouter(db)
@@ -93,9 +136,8 @@ func TestCreatePostRequiresAuth(t *testing.T) {
 
 func TestCreatePostWithJWTAndFutureFixedTime(t *testing.T) {
 	db := openRouterTestDB(t)
-	secret := "test_secret_123"
-	t.Setenv("JWT_SECRET", secret)
-	token, err := auth.SignToken("user_test_001", secret, 1)
+	ensureTestUser(t, db, "user_test_001")
+	token, err := auth.SignToken("user_test_001", testJWTSecret, 1)
 	if err != nil {
 		t.Fatalf("sign token failed: %v", err)
 	}
@@ -181,7 +223,7 @@ func TestPostInvitationFlow(t *testing.T) {
 
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/posts", bytes.NewReader(raw))
 	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("X-User-ID", "user_inviter")
+	createReq.Header.Set("Authorization", bearerFor(t, db, "user_inviter"))
 	createResp := httptest.NewRecorder()
 	router.ServeHTTP(createResp, createReq)
 	if createResp.Code != http.StatusOK {
@@ -203,7 +245,7 @@ func TestPostInvitationFlow(t *testing.T) {
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages/invitations", nil)
-	listReq.Header.Set("X-User-ID", "user_invitee")
+	listReq.Header.Set("Authorization", bearerFor(t, db, "user_invitee"))
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
@@ -223,7 +265,7 @@ func TestPostInvitationFlow(t *testing.T) {
 	}
 
 	sentReq := httptest.NewRequest(http.MethodGet, "/api/v1/messages/sent-invitations", nil)
-	sentReq.Header.Set("X-User-ID", "user_inviter")
+	sentReq.Header.Set("Authorization", bearerFor(t, db, "user_inviter"))
 	sentResp := httptest.NewRecorder()
 	router.ServeHTTP(sentResp, sentReq)
 	if sentResp.Code != http.StatusOK {
@@ -240,7 +282,7 @@ func TestPostInvitationFlow(t *testing.T) {
 	}
 
 	acceptReq := httptest.NewRequest(http.MethodPost, "/api/v1/invitations/"+invitation.ID+"/accept", nil)
-	acceptReq.Header.Set("X-User-ID", "user_invitee")
+	acceptReq.Header.Set("Authorization", bearerFor(t, db, "user_invitee"))
 	acceptResp := httptest.NewRecorder()
 	router.ServeHTTP(acceptResp, acceptReq)
 	if acceptResp.Code != http.StatusOK {
@@ -304,7 +346,7 @@ func TestCancelInvitationFlow(t *testing.T) {
 
 	router := NewRouter(db)
 	otherReq := httptest.NewRequest(http.MethodPost, "/api/v1/invitations/"+invitation.ID+"/cancel", nil)
-	otherReq.Header.Set("X-User-ID", "user_cancel_other")
+	otherReq.Header.Set("Authorization", bearerFor(t, db, "user_cancel_other"))
 	otherResp := httptest.NewRecorder()
 	router.ServeHTTP(otherResp, otherReq)
 	if otherResp.Code != http.StatusForbidden {
@@ -312,7 +354,7 @@ func TestCancelInvitationFlow(t *testing.T) {
 	}
 
 	cancelReq := httptest.NewRequest(http.MethodPost, "/api/v1/invitations/"+invitation.ID+"/cancel", nil)
-	cancelReq.Header.Set("X-User-ID", "user_cancel_inviter")
+	cancelReq.Header.Set("Authorization", bearerFor(t, db, "user_cancel_inviter"))
 	cancelResp := httptest.NewRecorder()
 	router.ServeHTTP(cancelResp, cancelReq)
 	if cancelResp.Code != http.StatusOK {
@@ -326,7 +368,7 @@ func TestCancelInvitationFlow(t *testing.T) {
 	}
 
 	acceptReq := httptest.NewRequest(http.MethodPost, "/api/v1/invitations/"+invitation.ID+"/accept", nil)
-	acceptReq.Header.Set("X-User-ID", "user_cancel_invitee")
+	acceptReq.Header.Set("Authorization", bearerFor(t, db, "user_cancel_invitee"))
 	acceptResp := httptest.NewRecorder()
 	router.ServeHTTP(acceptResp, acceptReq)
 	if acceptResp.Code != http.StatusConflict {
@@ -419,7 +461,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 	router := NewRouter(db)
 	startDate := dateOnly(time.Now()).Format("2006-01-02")
 	heatReq := httptest.NewRequest(http.MethodGet, "/api/v1/calendar/invite-heatmap?startDate="+startDate+"&days=30&category=运动&subCategory=羽毛球&period=evening&lat=40.1574&lng=116.2878&maxCount=6", nil)
-	heatReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	heatReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	heatResp := httptest.NewRecorder()
 	router.ServeHTTP(heatResp, heatReq)
 	if heatResp.Code != http.StatusOK {
@@ -447,7 +489,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 
 	candidateURL := "/api/v1/calendar/invite-candidates?date=" + targetDate.Format("2006-01-02") + "&category=运动&subCategory=羽毛球&period=evening&lat=40.1574&lng=116.2878&selectedIds=user_invite_calendar_b"
 	candidateReq := httptest.NewRequest(http.MethodGet, candidateURL, nil)
-	candidateReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	candidateReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	candidateResp := httptest.NewRecorder()
 	router.ServeHTTP(candidateResp, candidateReq)
 	if candidateResp.Code != http.StatusOK {
@@ -479,7 +521,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 	}
 
 	nonPreferredReq := httptest.NewRequest(http.MethodGet, "/api/v1/calendar/invite-candidates?date="+startDate+"&category=运动&subCategory=羽毛球&period=evening&lat=40.1574&lng=116.2878", nil)
-	nonPreferredReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	nonPreferredReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	nonPreferredResp := httptest.NewRecorder()
 	router.ServeHTTP(nonPreferredResp, nonPreferredReq)
 	if nonPreferredResp.Code != http.StatusOK {
@@ -501,7 +543,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 		"&subCategory=" + url.QueryEscape("羽毛球") +
 		"&period=evening&lat=40.1574&lng=116.2878&limit=30"
 	overrideReq := httptest.NewRequest(http.MethodGet, overrideURL, nil)
-	overrideReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	overrideReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	overrideResp := httptest.NewRecorder()
 	router.ServeHTTP(overrideResp, overrideReq)
 	if overrideResp.Code != http.StatusOK {
@@ -532,7 +574,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 		"&subCategory=" + url.QueryEscape("羽毛球") +
 		"&lat=40.1574&lng=116.2878&limit=30"
 	preserveReq := httptest.NewRequest(http.MethodGet, preserveURL, nil)
-	preserveReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	preserveReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	preserveResp := httptest.NewRecorder()
 	router.ServeHTTP(preserveResp, preserveReq)
 	if preserveResp.Code != http.StatusOK {
@@ -554,7 +596,7 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 	}
 
 	emptyReq := httptest.NewRequest(http.MethodGet, "/api/v1/calendar/invite-candidates?date="+targetDate.Format("2006-01-02")+"&category=学习&subCategory=编程&period=morning&address=火星基地", nil)
-	emptyReq.Header.Set("X-User-ID", "user_invite_calendar_author")
+	emptyReq.Header.Set("Authorization", bearerFor(t, db, "user_invite_calendar_author"))
 	emptyResp := httptest.NewRecorder()
 	router.ServeHTTP(emptyResp, emptyReq)
 	if emptyResp.Code != http.StatusOK {
@@ -573,9 +615,8 @@ func TestInviteCalendarHeatmapAndCandidates(t *testing.T) {
 
 func TestCreatePostRejectNowOrPastFixedTime(t *testing.T) {
 	db := openRouterTestDB(t)
-	secret := "test_secret_123"
-	t.Setenv("JWT_SECRET", secret)
-	token, err := auth.SignToken("user_test_001", secret, 1)
+	ensureTestUser(t, db, "user_test_001")
+	token, err := auth.SignToken("user_test_001", testJWTSecret, 1)
 	if err != nil {
 		t.Fatalf("sign token failed: %v", err)
 	}
@@ -635,7 +676,7 @@ func TestSendMessageRequiresParticipant(t *testing.T) {
 	body := []byte(`{"content":"hello"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/chats/post_a1/messages", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_outsider")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_outsider"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -678,7 +719,7 @@ func TestReviewOnlyAfterClosed(t *testing.T) {
 	body := []byte(`{"items":[{"toUserId":"user_author","rating":5,"comment":"ok"}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/post_b1/reviews", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_member")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_member"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusBadRequest {
@@ -691,7 +732,7 @@ func TestReviewOnlyAfterClosed(t *testing.T) {
 	resp2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/posts/post_b1/reviews", bytes.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
-	req2.Header.Set("X-User-ID", "user_member")
+	req2.Header.Set("Authorization", bearerFor(t, db, "user_member"))
 	router.ServeHTTP(resp2, req2)
 	if resp2.Code != http.StatusOK {
 		t.Fatalf("expected 200 for closed post, got %d, body=%s", resp2.Code, resp2.Body.String())
@@ -755,7 +796,7 @@ func TestReviewRecalcRatingScore(t *testing.T) {
 	body := []byte(`{"items":[{"toUserId":"user_target","rating":4,"comment":"ok"}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/post_rating_1/reviews", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", reviewer.ID)
+	req.Header.Set("Authorization", bearerFor(t, db, reviewer.ID))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
@@ -790,7 +831,7 @@ func TestAuthMe(t *testing.T) {
 
 	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
-	req.Header.Set("X-User-ID", "user_me_1")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_me_1"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -801,6 +842,7 @@ func TestAuthMe(t *testing.T) {
 
 func TestRefreshAndLogout(t *testing.T) {
 	db := openRouterTestDB(t)
+	t.Setenv("ENABLE_MOCK_LOGIN", "true")
 	router := NewRouter(db)
 
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/mock-login", bytes.NewReader([]byte(`{"nickname":"u1"}`)))
@@ -856,6 +898,7 @@ func TestRefreshAndLogout(t *testing.T) {
 
 func TestLogoutRevokesAccessToken(t *testing.T) {
 	db := openRouterTestDB(t)
+	t.Setenv("ENABLE_MOCK_LOGIN", "true")
 	router := NewRouter(db)
 
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/mock-login", bytes.NewReader([]byte(`{"nickname":"u2"}`)))
@@ -986,6 +1029,7 @@ func TestRegisterAndPasswordLogin(t *testing.T) {
 
 func TestRandomAvatarEndpoint(t *testing.T) {
 	db := openRouterTestDB(t)
+	t.Setenv("ENABLE_MOCK_LOGIN", "true")
 	router := NewRouter(db)
 
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/mock-login", bytes.NewReader([]byte(`{"nickname":"avatar_u"}`)))
@@ -1170,7 +1214,7 @@ func TestRecommendationFeedAndLogEndpoints(t *testing.T) {
 	router := NewRouter(db)
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/posts?sortBy=hot&page=1", nil)
-	listReq.Header.Set("X-User-ID", "user_rec_viewer")
+	listReq.Header.Set("Authorization", bearerFor(t, db, "user_rec_viewer"))
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
@@ -1194,7 +1238,7 @@ func TestRecommendationFeedAndLogEndpoints(t *testing.T) {
 	exposureBody := fmt.Sprintf(`{"feedRequestId":"%s","sessionId":"session_test","items":[{"postId":"post_rec_001","position":1,"strategy":"personalized","score":0.88}]}`, listPayload.FeedRequestID)
 	exposureReq := httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/exposures", bytes.NewReader([]byte(exposureBody)))
 	exposureReq.Header.Set("Content-Type", "application/json")
-	exposureReq.Header.Set("X-User-ID", "user_rec_viewer")
+	exposureReq.Header.Set("Authorization", bearerFor(t, db, "user_rec_viewer"))
 	exposureResp := httptest.NewRecorder()
 	router.ServeHTTP(exposureResp, exposureReq)
 	if exposureResp.Code != http.StatusOK {
@@ -1204,7 +1248,7 @@ func TestRecommendationFeedAndLogEndpoints(t *testing.T) {
 	clickBody := fmt.Sprintf(`{"feedRequestId":"%s","sessionId":"session_test","postId":"post_rec_001","position":1,"strategy":"personalized","score":0.88}`, listPayload.FeedRequestID)
 	clickReq := httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/click", bytes.NewReader([]byte(clickBody)))
 	clickReq.Header.Set("Content-Type", "application/json")
-	clickReq.Header.Set("X-User-ID", "user_rec_viewer")
+	clickReq.Header.Set("Authorization", bearerFor(t, db, "user_rec_viewer"))
 	clickResp := httptest.NewRecorder()
 	router.ServeHTTP(clickResp, clickReq)
 	if clickResp.Code != http.StatusOK {
@@ -1266,7 +1310,7 @@ func TestListPostsIncludesViewerFlags(t *testing.T) {
 	router := NewRouter(db)
 
 	authorReq := httptest.NewRequest(http.MethodGet, "/api/v1/posts?sortBy=latest&page=1", nil)
-	authorReq.Header.Set("X-User-ID", "user_author_flag")
+	authorReq.Header.Set("Authorization", bearerFor(t, db, "user_author_flag"))
 	authorResp := httptest.NewRecorder()
 	router.ServeHTTP(authorResp, authorReq)
 	if authorResp.Code != http.StatusOK {
@@ -1284,7 +1328,7 @@ func TestListPostsIncludesViewerFlags(t *testing.T) {
 	}
 
 	joinerReq := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+post.ID, nil)
-	joinerReq.Header.Set("X-User-ID", "user_joiner_flag")
+	joinerReq.Header.Set("Authorization", bearerFor(t, db, "user_joiner_flag"))
 	joinerResp := httptest.NewRecorder()
 	router.ServeHTTP(joinerResp, joinerReq)
 	if joinerResp.Code != http.StatusOK {
@@ -1340,7 +1384,7 @@ func TestClosePostCreatesActivityScores(t *testing.T) {
 	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/post_close_001/close", bytes.NewReader([]byte(`{}`)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_close_author")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_close_author"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
@@ -1417,7 +1461,7 @@ func TestGetUserHomeIncludesReviewStateSortingAndChatPreview(t *testing.T) {
 
 	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/user_home_subject/home", nil)
-	req.Header.Set("X-User-ID", "user_home_subject")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_home_subject"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
@@ -1811,7 +1855,7 @@ func TestGetSettlementRepairsStaleSettlementState(t *testing.T) {
 
 	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+post.ID+"/settlement", nil)
-	req.Header.Set("X-User-ID", "user_settle_author")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_settle_author"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
@@ -1895,7 +1939,7 @@ func TestGetUserHomeUsesRepairedSettlementWorkflow(t *testing.T) {
 
 	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/user_home_repair_author/home", nil)
-	req.Header.Set("X-User-ID", "user_home_repair_author")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_home_repair_author"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {

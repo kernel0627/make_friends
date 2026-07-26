@@ -55,11 +55,12 @@ func TestSmartPostDraftCallsDeepSeekJSONMode(t *testing.T) {
 	t.Setenv("DEEPSEEK_BASE_URL", deepSeek.URL)
 	t.Setenv("DEEPSEEK_MODEL", "deepseek-test")
 
-	router := NewRouter(openRouterTestDB(t))
+	db := openRouterTestDB(t)
+	router := NewRouter(db)
 	body := []byte(`{"input":"明晚北邮体育馆羽毛球 4 人","history":{"initiatedPosts":[],"joinedPosts":[]}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/smart-draft", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_smart_draft")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_smart_draft"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -94,10 +95,11 @@ func TestSmartPostDraftCallsDeepSeekJSONMode(t *testing.T) {
 func TestSmartPostDraftRequiresDeepSeekKey(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
 
-	router := NewRouter(openRouterTestDB(t))
+	db := openRouterTestDB(t)
+	router := NewRouter(db)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/smart-draft", strings.NewReader(`{"input":"明天羽毛球"}`))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_smart_draft")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_smart_draft"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 
@@ -140,7 +142,8 @@ func TestSmartPostDraftFillsMissingFieldsFromHistory(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "test-key")
 	t.Setenv("DEEPSEEK_BASE_URL", deepSeek.URL)
 
-	router := NewRouter(openRouterTestDB(t))
+	db := openRouterTestDB(t)
+	router := NewRouter(db)
 	body := []byte(`{
 		"input":"羽毛球",
 		"history":{
@@ -160,7 +163,7 @@ func TestSmartPostDraftFillsMissingFieldsFromHistory(t *testing.T) {
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/posts/smart-draft", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "user_smart_draft")
+	req.Header.Set("Authorization", bearerFor(t, db, "user_smart_draft"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 

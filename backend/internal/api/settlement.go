@@ -440,7 +440,10 @@ func (s *Server) CancelAllSettlement(c *gin.Context) {
 func (s *Server) GetCreditLedger(c *gin.Context) {
 	userID := strings.TrimSpace(c.Param("id"))
 	viewerID := optionalUserIDFromRequest(c, s.JWTSecret)
-	viewerRole := optionalUserRoleFromRequest(c, s.JWTSecret)
+	viewerRole := ""
+	if viewerID != "" {
+		viewerRole = s.resolveUserRole(viewerID)
+	}
 	if userID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "user id required"})
 		return

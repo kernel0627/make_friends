@@ -6,7 +6,7 @@ import { saveSession } from "../lib/session";
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ nickname: "admin", password: "123456" });
+  const [form, setForm] = useState({ nickname: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,7 +44,8 @@ export default function LoginPage() {
           <input
             value={form.nickname}
             onChange={(event) => setForm((prev) => ({ ...prev, nickname: event.target.value }))}
-            placeholder="admin / admin1 / admin2"
+            placeholder="请输入管理员账号"
+            autoComplete="username"
           />
         </label>
 
@@ -54,7 +55,8 @@ export default function LoginPage() {
             type="password"
             value={form.password}
             onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-            placeholder="123456"
+            placeholder="请输入密码"
+            autoComplete="current-password"
           />
         </label>
 
@@ -63,8 +65,6 @@ export default function LoginPage() {
         <button className="primary-button" disabled={submitting}>
           {submitting ? "登录中..." : "登录后台"}
         </button>
-
-        <div className="login-tip">默认管理员账号：admin / admin1 / admin2，密码统一为 123456。</div>
       </form>
     </div>
   );

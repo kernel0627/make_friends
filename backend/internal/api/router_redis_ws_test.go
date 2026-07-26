@@ -72,7 +72,7 @@ func TestPostsCacheHitAndInvalidateWithRedis(t *testing.T) {
 	raw, _ := json.Marshal(createBody)
 	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/posts", bytes.NewReader(raw))
 	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("X-User-ID", "u1")
+	createReq.Header.Set("Authorization", bearerFor(t, db, "u1"))
 	createResp := httptest.NewRecorder()
 	router.ServeHTTP(createResp, createReq)
 	if createResp.Code != http.StatusOK {
@@ -122,7 +122,7 @@ func TestWSBroadcastWithRedisPubSub(t *testing.T) {
 	dialer := websocket.Dialer{HandshakeTimeout: 3 * time.Second}
 
 	h1 := http.Header{}
-	h1.Set("X-User-ID", "u_member_1")
+	h1.Set("Authorization", bearerFor(t, db, "u_member_1"))
 	c1, _, err := dialer.Dial(wsURL, h1)
 	if err != nil {
 		t.Fatalf("dial ws client1 failed: %v", err)
@@ -130,7 +130,7 @@ func TestWSBroadcastWithRedisPubSub(t *testing.T) {
 	defer c1.Close()
 
 	h2 := http.Header{}
-	h2.Set("X-User-ID", "u_member_2")
+	h2.Set("Authorization", bearerFor(t, db, "u_member_2"))
 	c2, _, err := dialer.Dial(wsURL, h2)
 	if err != nil {
 		t.Fatalf("dial ws client2 failed: %v", err)
@@ -141,7 +141,7 @@ func TestWSBroadcastWithRedisPubSub(t *testing.T) {
 	sendBody := []byte(`{"content":"hello_ws"}`)
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/chats/post_ws_1/messages", bytes.NewReader(sendBody))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", "u_member_1")
+	req.Header.Set("Authorization", bearerFor(t, db, "u_member_1"))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("send message failed: %v", err)

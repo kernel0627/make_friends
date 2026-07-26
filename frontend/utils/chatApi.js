@@ -21,7 +21,6 @@ function fetchChatMessages(postId) {
   return request({
     url: '/chats/' + encodeURIComponent(postId) + '/messages',
     method: 'GET',
-    noAuth: true,
   }).then((res) => {
     const list = Array.isArray(res && res.messages) ? res.messages : []
     return list
