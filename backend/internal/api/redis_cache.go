@@ -13,11 +13,9 @@ import (
 )
 
 const (
-	postsVersionKey    = "zgbe:cache:version:posts"
-	hotPostsKeyPattern = "zgbe:post:list:hot:page:%d:v%s"
-	postDetailPattern  = "zgbe:post:detail:%s:v%s"
-	postsListTTL       = 45 * time.Second
-	postDetailTTL      = 90 * time.Second
+	postsVersionKey   = "zgbe:cache:version:posts"
+	postDetailPattern = "zgbe:post:detail:%s:v%s"
+	postDetailTTL     = 90 * time.Second
 )
 
 type cachedPostDetail struct {
@@ -33,17 +31,15 @@ func queryIntOrDefault(raw string, fallback int) int {
 	return v
 }
 
-func (s *Server) canUsePostsListCache(cachingCtx interface{ Query(string) string }, sortBy string) bool {
-	if !s.UseRedis || s.RedisClient == nil {
-		return false
-	}
-	if sortBy != "hot" {
-		return false
-	}
-	return strings.TrimSpace(cachingCtx.Query("category")) == "" &&
-		strings.TrimSpace(cachingCtx.Query("subCategory")) == "" &&
-		strings.TrimSpace(cachingCtx.Query("keyword")) == ""
-}
+// NOTE: there is deliberately no cache for the hot post list.
+//
+// A previous version of this file carried canUsePostsListCache /
+// getCachedHotPosts / setCachedHotPosts, keyed only by page. They were never
+// called, and calling them would have been a bug: the hot feed is ranked per
+// viewer (tags, click history, embedding and location, see
+// buildRecommendedFeed), so a page-keyed entry would serve one user's
+// personalised ordering to everyone else. The cost problem they were meant to
+// solve is handled instead by bounding the candidate set in ListPosts.
 
 func (s *Server) postsVersion(ctx context.Context) string {
 	if !s.UseRedis || s.RedisClient == nil {
@@ -58,35 +54,6 @@ func (s *Server) postsVersion(ctx context.Context) string {
 		return "1"
 	}
 	return strings.TrimSpace(v)
-}
-
-func (s *Server) getCachedHotPosts(ctx context.Context, page int) ([]model.Post, bool) {
-	version := s.postsVersion(ctx)
-	key := fmt.Sprintf(hotPostsKeyPattern, page, version)
-	raw, err := s.RedisClient.Get(ctx, key).Result()
-	if err != nil {
-		return nil, false
-	}
-	var posts []model.Post
-	if err := json.Unmarshal([]byte(raw), &posts); err != nil {
-		return nil, false
-	}
-	return posts, true
-}
-
-func (s *Server) setCachedHotPosts(ctx context.Context, page int, posts []model.Post) {
-	if !s.UseRedis || s.RedisClient == nil {
-		return
-	}
-	version := s.postsVersion(ctx)
-	key := fmt.Sprintf(hotPostsKeyPattern, page, version)
-	raw, err := json.Marshal(posts)
-	if err != nil {
-		return
-	}
-	if err := s.RedisClient.Set(ctx, key, raw, postsListTTL).Err(); err != nil {
-		log.Printf("redis set posts list cache failed: %v", err)
-	}
 }
 
 func (s *Server) getCachedPostDetail(ctx context.Context, postID string) (model.Post, []model.PostParticipant, bool) {
