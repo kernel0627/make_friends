@@ -169,4 +169,40 @@ func TestWSBroadcastWithRedisPubSub(t *testing.T) {
 	if !strings.Contains(string(m2), "hello_ws") {
 		t.Fatalf("client2 not receive expected payload: %s", string(m2))
 	}
+
+	// The pushed event must carry the same enriched shape the REST endpoints
+	// return, so a client can render it without a follow-up sender lookup.
+	var event struct {
+		Type    string `json:"type"`
+		Message struct {
+			ID        string `json:"id"`
+			PostID    string `json:"postId"`
+			SenderID  string `json:"senderId"`
+			Content   string `json:"content"`
+			CreatedAt int64  `json:"createdAt"`
+			Sender    struct {
+				ID        string `json:"id"`
+				NickName  string `json:"nickName"`
+				AvatarURL string `json:"avatarUrl"`
+			} `json:"sender"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(m1, &event); err != nil {
+		t.Fatalf("decode ws event failed: %v payload=%s", err, string(m1))
+	}
+	if event.Type != "chat_message" {
+		t.Fatalf("unexpected event type %q", event.Type)
+	}
+	if event.Message.ID == "" || event.Message.CreatedAt == 0 {
+		t.Fatalf("event message missing id/createdAt: %s", string(m1))
+	}
+	if event.Message.PostID != "post_ws_1" {
+		t.Fatalf("unexpected postId %q", event.Message.PostID)
+	}
+	if event.Message.SenderID != "u_member_1" {
+		t.Fatalf("unexpected senderId %q", event.Message.SenderID)
+	}
+	if event.Message.Sender.ID != "u_member_1" || event.Message.Sender.NickName == "" {
+		t.Fatalf("event message must embed the sender profile: %s", string(m1))
+	}
 }

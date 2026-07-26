@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Modal from "../components/Modal";
 import PaginationBar from "../components/PaginationBar";
 import {
@@ -12,35 +12,30 @@ import {
   restoreAdminUser,
   updateAdminUser,
 } from "../lib/api";
+import usePagedList from "../lib/usePagedList";
 import { getLedgerSourceLabel, getRoleLabel, getUserStatusLabel, getUserStatusTone } from "../lib/display";
 import { formatDateTime, formatDelta, formatScore } from "../lib/format";
 
 const initialFilters = { page: 1, pageSize: 20, keyword: "", status: "active" };
 
 export default function UsersPage() {
-  const [filters, setFilters] = useState(initialFilters);
-  const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 20 });
+  const {
+    filters,
+    setFilters,
+    updateFilters,
+    data,
+    loading,
+    error,
+    setError,
+    refresh: refreshList,
+  } = usePagedList(fetchAdminUsers, initialFilters);
   const [selectedUser, setSelectedUser] = useState(null);
   const [ledger, setLedger] = useState([]);
   const [adjustForm, setAdjustForm] = useState({ delta: -3, note: "" });
-  const [createForm, setCreateForm] = useState({ nickname: "", password: "123456" });
+  const [createForm, setCreateForm] = useState({ nickname: "", password: "" });
   const [editForm, setEditForm] = useState({ nickname: "" });
-  const [passwordForm, setPasswordForm] = useState({ password: "123456" });
+  const [passwordForm, setPasswordForm] = useState({ password: "" });
   const [showCreate, setShowCreate] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    refreshList();
-  }, [filters]);
-
-  async function refreshList() {
-    try {
-      const payload = await fetchAdminUsers(filters);
-      setData(payload);
-    } catch (err) {
-      setError(err.message || "加载用户列表失败");
-    }
-  }
 
   async function openUser(userId) {
     try {
@@ -51,7 +46,7 @@ export default function UsersPage() {
       setSelectedUser(detail);
       setLedger(ledgerPayload.items || []);
       setEditForm({ nickname: detail.user?.nickName || "" });
-      setPasswordForm({ password: "123456" });
+      setPasswordForm({ password: "" });
       setAdjustForm({ delta: -3, note: "" });
     } catch (err) {
       setError(err.message || "加载用户详情失败");
@@ -63,7 +58,7 @@ export default function UsersPage() {
     try {
       await createAdminUser(createForm);
       setShowCreate(false);
-      setCreateForm({ nickname: "", password: "123456" });
+      setCreateForm({ nickname: "", password: "" });
       await refreshList();
     } catch (err) {
       setError(err.message || "创建用户失败");
@@ -87,7 +82,7 @@ export default function UsersPage() {
     if (!selectedUser?.user?.id) return;
     try {
       await resetAdminUserPassword(selectedUser.user.id, passwordForm);
-      setPasswordForm({ password: "123456" });
+      setPasswordForm({ password: "" });
     } catch (err) {
       setError(err.message || "重置密码失败");
     }
@@ -128,10 +123,6 @@ export default function UsersPage() {
     } catch (err) {
       setError(err.message || "调整信誉分失败");
     }
-  }
-
-  function updateFilters(patch) {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page || 1 }));
   }
 
   return (
@@ -195,7 +186,7 @@ export default function UsersPage() {
               ))}
               {!data.items?.length ? (
                 <tr>
-                  <td colSpan="6" className="empty-cell">当前没有用户数据</td>
+                  <td colSpan="6" className="empty-cell">{loading ? "加载中..." : "当前没有用户数据"}</td>
                 </tr>
               ) : null}
             </tbody>
