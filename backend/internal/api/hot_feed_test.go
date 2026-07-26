@@ -55,29 +55,35 @@ func listHotPosts(t *testing.T, router http.Handler, page int) []postView {
 	return payload.Posts
 }
 
-// TestHotFeedBoundsCandidateSet checks the ranker scores a bounded set rather
-// than every active post.
-func TestHotFeedBoundsCandidateSet(t *testing.T) {
+// TestHotFeedIncludesAllActivePosts guards the public feed semantics: every
+// active post remains rankable and reachable through pagination, including
+// posts beyond the previously introduced 500-candidate cutoff.
+func TestHotFeedIncludesAllActivePosts(t *testing.T) {
 	db := openRouterTestDB(t)
-	t.Setenv("HOT_FEED_CANDIDATES", "40")
 	ensureTestUser(t, db, "user_hot_author")
-	seedActivePosts(t, db, 120)
+	seedActivePosts(t, db, 520)
 	router := NewRouter(db)
 
-	// Page 2 is inside the 40-post budget and must be full.
-	if got := len(listHotPosts(t, router, 2)); got != 20 {
-		t.Fatalf("page 2 should hold 20 posts, got %d", got)
+	seen := map[string]bool{}
+	for page := 1; page <= 26; page++ {
+		for _, item := range listHotPosts(t, router, page) {
+			seen[item.ID] = true
+		}
 	}
-	// Page 3 starts at offset 40, past the candidate budget.
-	if got := len(listHotPosts(t, router, 3)); got != 0 {
-		t.Fatalf("page beyond the candidate budget should be empty, got %d", got)
+	if len(seen) != 520 {
+		t.Fatalf("expected all 520 active posts across hot-feed pages, got %d", len(seen))
+	}
+	if !seen["post_hot_0519"] {
+		t.Fatalf("the oldest post beyond the former 500-candidate cutoff must remain reachable")
+	}
+	if got := len(listHotPosts(t, router, 27)); got != 0 {
+		t.Fatalf("page after all active posts should be empty, got %d", got)
 	}
 }
 
 // TestHotFeedPagesDoNotOverlap guards the in-memory slicing around the cap.
 func TestHotFeedPagesDoNotOverlap(t *testing.T) {
 	db := openRouterTestDB(t)
-	t.Setenv("HOT_FEED_CANDIDATES", "100")
 	ensureTestUser(t, db, "user_hot_author")
 	seedActivePosts(t, db, 60)
 	router := NewRouter(db)
@@ -93,32 +99,5 @@ func TestHotFeedPagesDoNotOverlap(t *testing.T) {
 	}
 	if len(seen) != 60 {
 		t.Fatalf("expected all 60 posts across 3 pages, got %d", len(seen))
-	}
-}
-
-// TestHotFeedKeepsMostRecentCandidates confirms truncation drops the oldest
-// posts rather than an arbitrary slice.
-func TestHotFeedKeepsMostRecentCandidates(t *testing.T) {
-	db := openRouterTestDB(t)
-	t.Setenv("HOT_FEED_CANDIDATES", "10")
-	ensureTestUser(t, db, "user_hot_author")
-	seedActivePosts(t, db, 50)
-	router := NewRouter(db)
-
-	seen := map[string]bool{}
-	for page := 1; page <= 2; page++ {
-		for _, item := range listHotPosts(t, router, page) {
-			seen[item.ID] = true
-		}
-	}
-	if len(seen) != 10 {
-		t.Fatalf("expected exactly the 10 newest candidates, got %d", len(seen))
-	}
-	// post_hot_0000 is the newest, post_hot_0049 the oldest.
-	if !seen["post_hot_0000"] {
-		t.Fatalf("the newest post must survive truncation")
-	}
-	if seen["post_hot_0049"] {
-		t.Fatalf("the oldest post must be dropped by truncation")
 	}
 }

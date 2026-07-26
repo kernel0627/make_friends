@@ -232,7 +232,6 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `RATE_LIMIT_SESSION_PER_MIN` | `600` | 微信静默登录、刷新令牌每分钟上限，按来源 IP 计数 |
 | `RATE_LIMIT_SMART_DRAFT_PER_HOUR` | `30` | 每用户每小时智能草稿次数（每次都会调用付费 DeepSeek 接口）|
 | `RATE_LIMIT_FEEDBACK_PER_MIN` | `120` | 推荐曝光/点击上报每分钟上限，按用户或 IP 计数 |
-| `HOT_FEED_CANDIDATES` | `500` | 热门排序每次请求参与打分的最近活动数量上限 |
 | `USE_REDIS` | `false` | 是否启用 Redis 能力 |
 | `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 |
