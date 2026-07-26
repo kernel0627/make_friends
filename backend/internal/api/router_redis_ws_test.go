@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,9 +18,13 @@ import (
 
 func ensureRedisForTest(t *testing.T) *redis.Client {
 	t.Helper()
-	client := redis.NewClient(&redis.Options{Addr: "127.0.0.1:6379"})
+	addr := strings.TrimSpace(os.Getenv("REDIS_TEST_ADDR"))
+	if addr == "" {
+		t.Skip("REDIS_TEST_ADDR is not set; refusing to use or clear the default Redis")
+	}
+	client := redis.NewClient(&redis.Options{Addr: addr})
 	if err := client.Ping(t.Context()).Err(); err != nil {
-		t.Skipf("redis unavailable: %v", err)
+		t.Skipf("isolated redis at %s unavailable: %v", addr, err)
 	}
 	if err := client.FlushAll(t.Context()).Err(); err != nil {
 		t.Fatalf("redis flush failed: %v", err)
@@ -32,7 +37,7 @@ func TestPostsCacheHitAndInvalidateWithRedis(t *testing.T) {
 	defer client.Close()
 
 	t.Setenv("USE_REDIS", "true")
-	t.Setenv("REDIS_ADDR", "127.0.0.1:6379")
+	t.Setenv("REDIS_ADDR", strings.TrimSpace(os.Getenv("REDIS_TEST_ADDR")))
 	t.Setenv("WS_ENABLED", "true")
 
 	db := openRouterTestDB(t)
@@ -102,7 +107,7 @@ func TestWSBroadcastWithRedisPubSub(t *testing.T) {
 	defer client.Close()
 
 	t.Setenv("USE_REDIS", "true")
-	t.Setenv("REDIS_ADDR", "127.0.0.1:6379")
+	t.Setenv("REDIS_ADDR", strings.TrimSpace(os.Getenv("REDIS_TEST_ADDR")))
 	t.Setenv("WS_ENABLED", "true")
 
 	db := openRouterTestDB(t)

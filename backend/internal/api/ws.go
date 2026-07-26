@@ -62,9 +62,33 @@ func (s *Server) WSChat(c *gin.Context) {
 		return
 	}
 
-	userID, _, _, ok := userIDFromRequest(c, s.JWTSecret)
+	// This handler is registered outside the authed group, so it has to repeat
+	// the checks RequireAuth performs. Skipping them let a logged-out user
+	// (token revoked) or a banned user (soft-deleted) keep opening chat
+	// sockets until their access token expired, up to a week later.
+	userID, _, jti, ok := userIDFromRequest(c, s.JWTSecret)
 	if !ok {
 		fail(c, http.StatusUnauthorized, "AUTH_REQUIRED", "missing user identity")
+		return
+	}
+	if jti != "" {
+		revoked, err := s.isAccessTokenRevoked(jti)
+		if err != nil {
+			fail(c, http.StatusInternalServerError, "AUTH_CHECK_FAILED", "auth check failed")
+			return
+		}
+		if revoked {
+			fail(c, http.StatusUnauthorized, "ACCESS_TOKEN_REVOKED", "access token revoked")
+			return
+		}
+	}
+	_, _, deleted, found := s.resolveUserAccess(userID)
+	if !found {
+		fail(c, http.StatusUnauthorized, "USER_NOT_FOUND", "user no longer exists")
+		return
+	}
+	if deleted {
+		fail(c, http.StatusUnauthorized, "USER_DISABLED", "account has been disabled")
 		return
 	}
 	isMember, err := s.isPostMember(postID, userID)
