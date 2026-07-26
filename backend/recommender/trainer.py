@@ -5,11 +5,14 @@ import time
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.model_selection import train_test_split
 
-from .features import build_training_examples, default_weights
+from .features import UNTRAINABLE_WEIGHTS, build_training_examples, default_weights
 from .storage import load_model_version, save_recommendation_model
 
 MIN_DEPLOYABLE_AUC = 0.54
+HOLDOUT_FRACTION = 0.25
+MIN_HOLDOUT_ROWS = 200
 
 
 def train_ranking_model(conn, *, model_key: str, model_name: str, now_ms: int | None = None) -> dict[str, float]:
@@ -33,15 +36,36 @@ def train_ranking_model(conn, *, model_key: str, model_name: str, now_ms: int | 
         )
         return training_stats
 
+    # Score on held-out rows. Evaluating on the training set made the
+    # MIN_DEPLOYABLE_AUC gate meaningless: an overfit model reports a high AUC
+    # on data it already memorised and deploys regardless of real quality.
+    holdout_used = False
+    x_train, y_train, x_eval, y_eval = x_rows, y_rows, x_rows, y_rows
+    if len(y_rows) >= MIN_HOLDOUT_ROWS:
+        try:
+            x_train, x_eval, y_train, y_eval = train_test_split(
+                x_rows,
+                y_rows,
+                test_size=HOLDOUT_FRACTION,
+                random_state=42,
+                stratify=y_rows,
+            )
+            holdout_used = len(set(y_eval)) >= 2
+            if not holdout_used:
+                x_train, y_train, x_eval, y_eval = x_rows, y_rows, x_rows, y_rows
+        except ValueError:
+            # Too few of one class to stratify; fall back to full-set fitting.
+            x_train, y_train, x_eval, y_eval = x_rows, y_rows, x_rows, y_rows
+
     clf = LogisticRegression(max_iter=1000, class_weight="balanced", solver="liblinear")
-    clf.fit(x_rows, y_rows)
-    probs = clf.predict_proba(x_rows)[:, 1]
+    clf.fit(x_train, y_train)
+    probs = clf.predict_proba(x_eval)[:, 1]
     try:
-        auc = float(roc_auc_score(y_rows, probs))
+        auc = float(roc_auc_score(y_eval, probs))
     except Exception:
         auc = 0.0
     try:
-        loss = float(log_loss(y_rows, probs, labels=[0, 1]))
+        loss = float(log_loss(y_eval, probs, labels=[0, 1]))
     except Exception:
         loss = 0.0
 
@@ -66,7 +90,11 @@ def train_ranking_model(conn, *, model_key: str, model_name: str, now_ms: int | 
         )
         return training_stats
 
+    # Carry the untrainable weights through: the scorer treats an absent
+    # feature name as weight zero, so omitting them here would silently
+    # disable those signals for every request served by this model.
     weights = {name: float(value) for name, value in zip(feature_names, clf.coef_[0])}
+    weights.update(UNTRAINABLE_WEIGHTS)
     training_stats = dict(stats)
     training_stats.update({
         "fallback": False,
@@ -74,6 +102,7 @@ def train_ranking_model(conn, *, model_key: str, model_name: str, now_ms: int | 
         "logLoss": round(loss, 6),
         "trainedAt": now_ms,
         "sampleCount": len(y_rows),
+        "holdoutEval": holdout_used,
     })
     save_recommendation_model(
         conn,

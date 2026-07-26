@@ -31,6 +31,9 @@ FEATURE_NAMES = [
     "viewer_unclicked_same_subcategory_7d",
 ]
 
+# How far back training reads impression data.
+TRAINING_WINDOW_DAYS = 30
+
 CHINESE_CITIES = [
     "\u4e0a\u6d77",
     "\u5317\u4eac",
@@ -47,28 +50,56 @@ CHINESE_CITIES = [
 ]
 
 
+# Features the Go scorer computes at request time but that training data
+# cannot express, so no weight can ever be learned for them. feed_exposures
+# stores no viewer coordinates, so location_proximity is only knowable live.
+#
+# The scorer looks weights up by name and treats a missing name as zero, so
+# these must be carried into every published model. Without this, the moment a
+# real model trains, location stops influencing ranking at all.
+UNTRAINABLE_WEIGHTS = {
+    "location_proximity": 0.24,
+}
+
+_TRAINABLE_DEFAULT_WEIGHTS = {
+    "embedding_cosine": 0.46,
+    "sub_category_match": 0.18,
+    "category_match": 0.08,
+    "city_match": 0.06,
+    "author_quality": 0.18,
+    "interaction_heat": 0.06,
+    "freshness": 0.08,
+    "joinability": 0.06,
+    "joinability_ratio": 0.06,
+    "author_rating_score": 0.07,
+    "author_credit_score": 0.06,
+    "author_activity_score_count": 0.03,
+    "post_current_count": 0.02,
+    "post_chat_count": 0.03,
+    "post_review_count": 0.03,
+    "post_age_hours": -0.02,
+    "fixed_time_distance_hours": -0.02,
+    "viewer_clicked_same_subcategory_7d": 0.08,
+    "viewer_unclicked_same_subcategory_7d": -0.05,
+}
+
+
 def default_weights() -> dict[str, float]:
-    return {
-        "embedding_cosine": 0.46,
-        "sub_category_match": 0.18,
-        "category_match": 0.08,
-        "city_match": 0.06,
-        "location_proximity": 0.24,
-        "author_quality": 0.18,
-        "interaction_heat": 0.06,
-        "freshness": 0.08,
-        "joinability": 0.06,
-        "author_rating_score": 0.07,
-        "author_credit_score": 0.06,
-        "author_activity_score_count": 0.03,
-        "post_current_count": 0.02,
-        "post_chat_count": 0.03,
-        "post_review_count": 0.03,
-        "post_age_hours": -0.02,
-        "fixed_time_distance_hours": -0.02,
-        "viewer_clicked_same_subcategory_7d": 0.08,
-        "viewer_unclicked_same_subcategory_7d": -0.05,
-    }
+    """Fallback weights, published when a model cannot be trained.
+
+    Spans the full feature set the Go scorer evaluates: every trainable
+    feature plus the untrainable ones. Previously this omitted
+    ``joinability_ratio`` (so that signal was dead in the fallback model)
+    while listing ``location_proximity`` — which the trainer then dropped
+    from every real model it published.
+    """
+    missing = set(FEATURE_NAMES) - set(_TRAINABLE_DEFAULT_WEIGHTS)
+    unknown = set(_TRAINABLE_DEFAULT_WEIGHTS) - set(FEATURE_NAMES)
+    if missing or unknown:
+        raise ValueError(
+            f"default weights out of sync with FEATURE_NAMES: missing={sorted(missing)} unknown={sorted(unknown)}"
+        )
+    return {**_TRAINABLE_DEFAULT_WEIGHTS, **UNTRAINABLE_WEIGHTS}
 
 
 def clamp(value: float, min_value: float, max_value: float) -> float:
@@ -246,9 +277,27 @@ def build_user_embedding_sources(conn) -> dict[str, list[tuple[str, float]]]:
     return dict(sources)
 
 
-def build_training_examples(conn, model_name: str, now_ms: int) -> tuple[list[list[float]], list[int], dict[str, float], list[str]]:
-    exposures = fetch_all(conn, "SELECT request_id, user_id, session_id, post_id, created_at FROM feed_exposures ORDER BY created_at ASC")
-    clicks = fetch_all(conn, "SELECT request_id, post_id, created_at FROM feed_clicks ORDER BY created_at ASC")
+def build_training_examples(
+    conn,
+    model_name: str,
+    now_ms: int,
+    window_days: int = TRAINING_WINDOW_DAYS,
+) -> tuple[list[list[float]], list[int], dict[str, float], list[str]]:
+    # Bounded by time: this runs every few minutes, and an unbounded scan of
+    # feed_exposures grows without limit, so training slows down forever as
+    # the table fills. Stale impressions also describe a product that no
+    # longer exists.
+    cutoff = now_ms - window_days * 24 * 60 * 60 * 1000
+    exposures = fetch_all(
+        conn,
+        "SELECT request_id, user_id, session_id, post_id, created_at FROM feed_exposures WHERE created_at >= ? ORDER BY created_at ASC",
+        (cutoff,),
+    )
+    clicks = fetch_all(
+        conn,
+        "SELECT request_id, post_id, created_at FROM feed_clicks WHERE created_at >= ? ORDER BY created_at ASC",
+        (cutoff,),
+    )
     click_times: dict[tuple[str, str], int] = {}
     for row in clicks:
         key = (str(row["request_id"]), str(row["post_id"]))

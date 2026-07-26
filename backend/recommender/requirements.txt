@@ -1,3 +1,10 @@
+# The sentence-transformers / transformers / tokenizers / huggingface-hub
+# versions below are mutually compatible and must be bumped together — the
+# 2.2.2 line breaks against transformers >= 4.29.
+#
+# torch is intentionally unpinned so each host can install the build matching
+# its CPU/CUDA, but it must stay within the range that old transformers
+# supports; pin it in your own environment if installs start drifting.
 torch
 torchvision
 torchaudio
@@ -5,8 +12,11 @@ sentence-transformers==2.2.2
 transformers==4.28.1
 tokenizers==0.13.3
 huggingface-hub==0.14.1
-redis
-scikit-learn
+redis>=4.2
+scikit-learn>=1.0
 numpy
 pandas
 
+# Tests only (recommender/tests covers features/trainer/storage, which need
+# neither torch nor redis).
+pytest>=7.0
