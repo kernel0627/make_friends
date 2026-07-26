@@ -226,13 +226,17 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `WECHAT_APP_ID` | 空 | 微信登录 App ID |
 | `WECHAT_APP_SECRET` | 空 | 微信登录密钥 |
 | `ADMIN_WEB_ORIGIN` | 空 | 额外允许的管理后台跨域来源，逗号分隔 |
-| `RATE_LIMIT_AUTH_PER_MIN` | `20` | 登录/注册/刷新每分钟上限，按来源 IP 和账号名分别计数；`0` 关闭 |
+| `TRUSTED_PROXIES` | 空 | 可相信其转发头的代理 IP/CIDR，逗号分隔；默认忽略客户端转发头 |
+| `RATE_LIMIT_AUTH_PER_MIN` | `60` | 注册、密码登录每分钟上限，按来源 IP 计数；`0` 关闭 |
+| `RATE_LIMIT_ACCOUNT_FAILURES_PER_MIN` | `10` | 错误密码每分钟上限，按账号计数；正确密码不受该桶阻挡，成功后清空失败记录 |
+| `RATE_LIMIT_SESSION_PER_MIN` | `600` | 微信静默登录、刷新令牌每分钟上限，按来源 IP 计数 |
 | `RATE_LIMIT_SMART_DRAFT_PER_HOUR` | `30` | 每用户每小时智能草稿次数（每次都会调用付费 DeepSeek 接口）|
 | `RATE_LIMIT_FEEDBACK_PER_MIN` | `120` | 推荐曝光/点击上报每分钟上限，按用户或 IP 计数 |
 | `HOT_FEED_CANDIDATES` | `500` | 热门排序每次请求参与打分的最近活动数量上限 |
 | `USE_REDIS` | `false` | 是否启用 Redis 能力 |
 | `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 |
+| `REDIS_TEST_ADDR` | 空 | 测试专用隔离 Redis 地址；未设置时 Redis 集成测试跳过，避免清空日常实例 |
 | `WS_ENABLED` | `true` | WebSocket 开关；仍需 Redis 可用 |
 | `DEEPSEEK_API_KEY` | 空 | 智能发布 API Key |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek API 地址 |

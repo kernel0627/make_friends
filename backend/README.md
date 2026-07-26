@@ -59,7 +59,12 @@ go run ./cmd/server
 - `USE_REDIS`：是否启用 Redis
 - `REDIS_ADDR`：Redis 地址，默认 `127.0.0.1:6379`
 - `REDIS_PASSWORD`：Redis 密码
+- `REDIS_TEST_ADDR`：测试专用隔离 Redis 地址；未设置时 Redis 集成测试跳过
 - `WS_ENABLED`：是否启用 WebSocket
+- `TRUSTED_PROXIES`：可信代理 IP/CIDR，逗号分隔；默认忽略客户端转发头
+- `RATE_LIMIT_AUTH_PER_MIN`：注册、密码登录的来源 IP 预算，默认 `60`
+- `RATE_LIMIT_ACCOUNT_FAILURES_PER_MIN`：同一账号错误密码预算，默认 `10`
+- `RATE_LIMIT_SESSION_PER_MIN`：微信静默登录、刷新令牌的来源 IP 预算，默认 `600`
 
 ## 种子与修复命令
 

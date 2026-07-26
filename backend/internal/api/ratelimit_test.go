@@ -90,7 +90,8 @@ func TestRateLimiterExpiresIdleKeys(t *testing.T) {
 // per-IP bucket alone would not stop attempts spread across many sources.
 func TestLoginIsThrottledPerAccount(t *testing.T) {
 	db := openRouterTestDB(t)
-	t.Setenv("RATE_LIMIT_AUTH_PER_MIN", "4")
+	t.Setenv("RATE_LIMIT_AUTH_PER_MIN", "100")
+	t.Setenv("RATE_LIMIT_ACCOUNT_FAILURES_PER_MIN", "4")
 	router := NewRouter(db)
 	ensureTestUser(t, db, "user_throttle")
 

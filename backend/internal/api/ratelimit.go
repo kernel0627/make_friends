@@ -66,6 +66,17 @@ func (r *rateLimiter) allow(key string, now time.Time) (bool, int) {
 	return true, 0
 }
 
+// reset clears a key's window, used when a successful login proves the earlier
+// failures were not an attack.
+func (r *rateLimiter) reset(key string) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.counters, key)
+}
+
 // gcLocked drops expired windows so the map cannot grow without bound from
 // one-off keys (a rotating source IP would otherwise leak an entry each time).
 func (r *rateLimiter) gcLocked(now time.Time) {
@@ -123,33 +134,70 @@ func userOrIPKey(c *gin.Context) string {
 }
 
 type rateLimits struct {
-	auth           *rateLimiter
-	smartDraft     *rateLimiter
-	recommendation *rateLimiter
+	authIP          *rateLimiter
+	accountFailures *rateLimiter
+	sessionIP       *rateLimiter
+	smartDraft      *rateLimiter
+	recommendation  *rateLimiter
 }
 
-// allowAccountAttempt throttles login attempts against a single account name,
-// independent of where they come from. The per-IP bucket alone would let a
-// distributed guess walk one account's password at full speed.
-func (s *Server) allowAccountAttempt(c *gin.Context, nickname string) bool {
+// noteFailedLogin records a wrong-password attempt against an account and
+// reports whether that account has now exceeded its failure budget.
+//
+// Only *failures* are counted, and this is called after the password has been
+// checked, so a caller presenting the correct password is never refused. An
+// earlier version throttled before checking, which let anyone lock a known
+// account — "admin", say — out of its own login by spraying wrong passwords
+// from any address.
+func (s *Server) noteFailedLogin(nickname string) (bool, int) {
 	nickname = strings.TrimSpace(strings.ToLower(nickname))
-	if nickname == "" || s.AuthLimiter == nil {
-		return true
+	if nickname == "" || s.AccountFailureLimiter == nil {
+		return true, 0
 	}
-	ok, retryAfter := s.AuthLimiter.allow("account:"+nickname, time.Now())
-	if !ok {
-		c.Header("Retry-After", strconv.Itoa(retryAfter))
-		fail(c, http.StatusTooManyRequests, "RATE_LIMITED", "too many attempts, please retry later")
+	return s.AccountFailureLimiter.allow("account_fail:"+nickname, time.Now())
+}
+
+// clearLoginFailures drops the failure budget after a successful login so a
+// legitimate user who mistyped a few times starts clean.
+func (s *Server) clearLoginFailures(nickname string) {
+	nickname = strings.TrimSpace(strings.ToLower(nickname))
+	if nickname == "" || s.AccountFailureLimiter == nil {
+		return
 	}
-	return ok
+	s.AccountFailureLimiter.reset("account_fail:" + nickname)
+}
+
+// failLoginThrottled writes the 429 used when an account's failure budget is
+// spent. The caller has already established the credentials were wrong.
+func failLoginThrottled(c *gin.Context, retryAfter int) {
+	c.Header("Retry-After", strconv.Itoa(retryAfter))
+	fail(c, http.StatusTooManyRequests, "RATE_LIMITED", "too many failed attempts, please retry later")
 }
 
 // newRateLimits builds the limiter set from env overrides. A limit of 0
 // disables that bucket, which is how the tests opt out.
 func newRateLimits() rateLimits {
 	return rateLimits{
-		auth: newRateLimiter(
-			envInt("RATE_LIMIT_AUTH_PER_MIN", 20),
+		// Deliberate, human-initiated credential entry: rare even for a large
+		// shared egress address.
+		authIP: newRateLimiter(
+			envInt("RATE_LIMIT_AUTH_PER_MIN", 60),
+			time.Minute,
+		),
+		// Wrong passwords are counted separately by normalized account name.
+		// Correct credentials are checked before this bucket and therefore
+		// cannot be locked out by another caller's failures.
+		accountFailures: newRateLimiter(
+			envInt("RATE_LIMIT_ACCOUNT_FAILURES_PER_MIN", 10),
+			time.Minute,
+		),
+		// Automatic session traffic (token refresh, silent WeChat login). These
+		// fire without user action, and mobile carriers put very many real
+		// users behind one address, so this budget must be far looser than the
+		// credential one. Refresh tokens are 256-bit random, so guessing them
+		// is not the threat this defends against.
+		sessionIP: newRateLimiter(
+			envInt("RATE_LIMIT_SESSION_PER_MIN", 600),
 			time.Minute,
 		),
 		smartDraft: newRateLimiter(

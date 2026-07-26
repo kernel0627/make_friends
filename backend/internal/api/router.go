@@ -29,17 +29,17 @@ import (
 )
 
 type Server struct {
-	DB            *gorm.DB
-	JWTSecret     string
-	WechatAppID   string
-	WechatSecret  string
-	HTTPClient    *http.Client
-	TokenExpireHr int
-	RefreshExpire int
-	RedisClient   *redis.Client
-	UseRedis      bool
-	WSEnabled     bool
-	AuthLimiter   *rateLimiter
+	DB                    *gorm.DB
+	JWTSecret             string
+	WechatAppID           string
+	WechatSecret          string
+	HTTPClient            *http.Client
+	TokenExpireHr         int
+	RefreshExpire         int
+	RedisClient           *redis.Client
+	UseRedis              bool
+	WSEnabled             bool
+	AccountFailureLimiter *rateLimiter
 }
 
 const contextUserIDKey = "userID"
@@ -64,23 +64,31 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	}
 	limits := newRateLimits()
 	s := &Server{
-		DB:            db,
-		JWTSecret:     jwtSecret,
-		WechatAppID:   os.Getenv("WECHAT_APP_ID"),
-		WechatSecret:  os.Getenv("WECHAT_APP_SECRET"),
-		HTTPClient:    &http.Client{Timeout: 8 * time.Second},
-		TokenExpireHr: 24 * 7,
-		RefreshExpire: 24 * 30,
-		RedisClient:   redisClient,
-		UseRedis:      useRedis && redisClient != nil,
-		WSEnabled:     envBool("WS_ENABLED", true),
-		AuthLimiter:   limits.auth,
+		DB:                    db,
+		JWTSecret:             jwtSecret,
+		WechatAppID:           os.Getenv("WECHAT_APP_ID"),
+		WechatSecret:          os.Getenv("WECHAT_APP_SECRET"),
+		HTTPClient:            &http.Client{Timeout: 8 * time.Second},
+		TokenExpireHr:         24 * 7,
+		RefreshExpire:         24 * 30,
+		RedisClient:           redisClient,
+		UseRedis:              useRedis && redisClient != nil,
+		WSEnabled:             envBool("WS_ENABLED", true),
+		AccountFailureLimiter: limits.accountFailures,
 	}
-	authLimit := limits.auth.limitBy("RATE_LIMITED", "too many attempts, please retry later", authAttemptKey)
+	authLimit := limits.authIP.limitBy("RATE_LIMITED", "too many attempts, please retry later", authAttemptKey)
+	sessionLimit := limits.sessionIP.limitBy("RATE_LIMITED", "too many requests", authAttemptKey)
 	smartDraftLimit := limits.smartDraft.limitBy("RATE_LIMITED", "smart draft quota exceeded, please retry later", userOrIPKey)
 	feedbackLimit := limits.recommendation.limitBy("RATE_LIMITED", "too many requests", userOrIPKey)
 
 	r := gin.Default()
+	// Gin trusts every proxy by default, which makes c.ClientIP() return the
+	// caller-supplied X-Forwarded-For. Any per-IP limit would then be defeated
+	// by sending a different value each request. Trust nothing unless the
+	// operator names the real proxies.
+	if err := r.SetTrustedProxies(trustedProxies()); err != nil {
+		log.Fatalf("invalid TRUSTED_PROXIES: %v", err)
+	}
 	r.Use(adminWebCORS())
 	// Cap request bodies: every endpoint here takes small JSON, and without a
 	// limit a single request can stream unbounded data into memory.
@@ -96,12 +104,13 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			log.Printf("WARNING: /auth/mock-login is enabled; never enable this in production")
 			v1.POST("/auth/mock-login", s.MockLogin)
 		}
-		// Credential endpoints are throttled: bcrypt makes each attempt
+		// Password endpoints are throttled tightly: bcrypt makes each attempt
 		// expensive enough to be both a guessing oracle and a CPU sink.
-		v1.POST("/auth/wechat-login", authLimit, s.WechatLogin)
 		v1.POST("/auth/register", authLimit, s.Register)
 		v1.POST("/auth/password-login", authLimit, s.PasswordLogin)
-		v1.POST("/auth/refresh", authLimit, s.RefreshToken)
+		// Automatic session traffic gets the looser budget — see rateLimits.
+		v1.POST("/auth/wechat-login", sessionLimit, s.WechatLogin)
+		v1.POST("/auth/refresh", sessionLimit, s.RefreshToken)
 		v1.POST("/auth/logout", s.Logout)
 
 		v1.GET("/posts", s.ListPosts)
@@ -192,6 +201,27 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+// trustedProxies returns the proxy CIDRs whose X-Forwarded-For may be believed.
+// Empty (the default) means the peer address is used verbatim. Set
+// TRUSTED_PROXIES to your load balancer's range when running behind one,
+// otherwise every client can forge its own source address.
+func trustedProxies() []string {
+	raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
+	if raw == "" {
+		return nil
+	}
+	out := make([]string, 0, 4)
+	for _, item := range strings.Split(raw, ",") {
+		if value := strings.TrimSpace(item); value != "" {
+			out = append(out, value)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // hotFeedCandidateLimit caps how many recent active posts the ranker scores.
@@ -497,13 +527,21 @@ func (s *Server) PasswordLogin(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "NICKNAME_PASSWORD_REQUIRED", "nickname and password required")
 		return
 	}
-	if !s.allowAccountAttempt(c, nickname) {
-		return
+	// Credentials are checked before any account-level throttling, so a caller
+	// with the right password always gets in. Only failures are counted.
+	rejectAttempt := func() {
+		withinBudget, retryAfter := s.noteFailedLogin(nickname)
+		if !withinBudget {
+			failLoginThrottled(c, retryAfter)
+			return
+		}
+		fail(c, http.StatusUnauthorized, "LOGIN_FAILED", "invalid nickname or password")
 	}
+
 	var user model.User
 	if err := s.DB.First(&user, "nickname = ?", nickname).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			fail(c, http.StatusUnauthorized, "LOGIN_FAILED", "invalid nickname or password")
+			rejectAttempt()
 			return
 		}
 		fail(c, http.StatusInternalServerError, "QUERY_USER_FAILED", "query user failed")
@@ -514,13 +552,14 @@ func (s *Server) PasswordLogin(c *gin.Context) {
 		return
 	}
 	if user.PasswordHash == "" {
-		fail(c, http.StatusUnauthorized, "LOGIN_FAILED", "invalid nickname or password")
+		rejectAttempt()
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		fail(c, http.StatusUnauthorized, "LOGIN_FAILED", "invalid nickname or password")
+		rejectAttempt()
 		return
 	}
+	s.clearLoginFailures(nickname)
 	if strings.TrimSpace(user.AvatarURL) == "" {
 		user.AvatarURL = avatarURLFromSeed(user.ID)
 		user.UpdatedAt = time.Now().UnixMilli()
