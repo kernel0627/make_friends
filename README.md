@@ -222,6 +222,7 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `BACKEND_ADDR` | `:8080` | 后端监听地址 |
 | `JWT_SECRET` | 开发默认值 | JWT 签名密钥。release 模式下若为空或仍是默认值，服务会直接拒绝启动 |
 | `ADMIN_INIT_PASSWORD` | 空 | 首次创建 `admin` 时使用的密码；留空则随机生成并打印到日志 |
+| `ADMIN_INIT_NICKNAME` | `admin` | 首次创建根管理员时使用的昵称；无可用管理员且昵称冲突时服务明确报错，改成未占用昵称后重试 |
 | `ENABLE_MOCK_LOGIN` | `false` | 是否开放 `/auth/mock-login`（免凭证换取 JWT，**仅限本地开发**） |
 | `WECHAT_APP_ID` | 空 | 微信登录 App ID |
 | `WECHAT_APP_SECRET` | 空 | 微信登录密钥 |

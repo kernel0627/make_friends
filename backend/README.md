@@ -55,6 +55,8 @@ go run ./cmd/server
 
 - `BACKEND_ADDR`：监听地址，默认 `:8080`
 - `JWT_SECRET`：JWT 密钥
+- `ADMIN_INIT_NICKNAME`：首次创建根管理员的昵称，默认 `admin`；冲突时需改为未占用昵称后重试
+- `ADMIN_INIT_PASSWORD`：首次创建根管理员的密码；留空时生成随机密码并写入启动日志
 - `WECHAT_APP_ID` / `WECHAT_APP_SECRET`：微信登录配置
 - `USE_REDIS`：是否启用 Redis
 - `REDIS_ADDR`：Redis 地址，默认 `127.0.0.1:6379`

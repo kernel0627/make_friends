@@ -76,8 +76,9 @@ func TestEnsureDefaultAdminNeverTouchesExistingAccounts(t *testing.T) {
 		t.Fatalf("seed squatter failed: %v", err)
 	}
 
-	if err := EnsureDefaultAdmin(database); err != nil {
-		t.Fatalf("EnsureDefaultAdmin failed: %v", err)
+	err := EnsureDefaultAdmin(database)
+	if err == nil {
+		t.Fatalf("nickname conflict with no active admin must fail loudly")
 	}
 
 	var gotDeleted model.User
@@ -100,5 +101,50 @@ func TestEnsureDefaultAdminNeverTouchesExistingAccounts(t *testing.T) {
 	}
 	if adminCount != 0 {
 		t.Fatalf("no admin should be created while nickname is occupied, got=%d", adminCount)
+	}
+}
+
+func TestEnsureDefaultAdminRecoversWithConfiguredNickname(t *testing.T) {
+	database := openAdminTestDB(t)
+	now := time.Now().UnixMilli()
+	t.Setenv("ADMIN_INIT_NICKNAME", "ops_admin")
+	t.Setenv("ADMIN_INIT_PASSWORD", "bootstrap_pw_2")
+
+	squatter := model.User{
+		ID: "user_squatter", Platform: "password", OpenID: "pwd_squatter",
+		Nickname: DefaultAdminNickname, Role: model.UserRoleUser,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := database.Create(&squatter).Error; err != nil {
+		t.Fatalf("seed squatter failed: %v", err)
+	}
+
+	if err := EnsureDefaultAdmin(database); err != nil {
+		t.Fatalf("configured nickname should recover bootstrap: %v", err)
+	}
+	if err := EnsureDefaultAdmin(database); err != nil {
+		t.Fatalf("second bootstrap should remain idempotent: %v", err)
+	}
+
+	var admin model.User
+	if err := database.First(&admin, "role = ? AND deleted_at = 0", model.UserRoleAdmin).Error; err != nil {
+		t.Fatalf("load configured admin failed: %v", err)
+	}
+	if admin.Nickname != "ops_admin" {
+		t.Fatalf("expected configured nickname, got %q", admin.Nickname)
+	}
+	if !admin.RootAdmin {
+		t.Fatalf("configured bootstrap account should be root admin")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(admin.PasswordHash), []byte("bootstrap_pw_2")); err != nil {
+		t.Fatalf("configured admin password hash mismatch: %v", err)
+	}
+
+	var gotSquatter model.User
+	if err := database.First(&gotSquatter, "id = ?", squatter.ID).Error; err != nil {
+		t.Fatalf("reload squatter failed: %v", err)
+	}
+	if gotSquatter.Role != model.UserRoleUser {
+		t.Fatalf("existing account must not be promoted, got role %q", gotSquatter.Role)
 	}
 }

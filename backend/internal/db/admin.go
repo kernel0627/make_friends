@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -18,6 +19,14 @@ import (
 )
 
 const DefaultAdminNickname = "admin"
+
+func adminInitNickname() string {
+	nickname := strings.TrimSpace(os.Getenv("ADMIN_INIT_NICKNAME"))
+	if nickname == "" {
+		return DefaultAdminNickname
+	}
+	return nickname
+}
 
 // EnsureDefaultAdmin backfills empty roles and bootstraps a root admin when
 // the database has none. It never modifies existing accounts: promoting a
@@ -40,12 +49,16 @@ func EnsureDefaultAdmin(database *gorm.DB) error {
 		return nil
 	}
 
+	nickname := adminInitNickname()
 	var occupied model.User
-	err := database.First(&occupied, "nickname = ?", DefaultAdminNickname).Error
+	err := database.First(&occupied, "nickname = ?", nickname).Error
 	switch {
 	case err == nil:
-		log.Printf("no active admin exists but nickname %q is taken by user %s; create an admin manually (cmd/seed-admin or SQL)", DefaultAdminNickname, occupied.ID)
-		return nil
+		return fmt.Errorf(
+			"no active admin exists but ADMIN_INIT_NICKNAME %q is occupied by user %s; set ADMIN_INIT_NICKNAME to an unused nickname and rerun",
+			nickname,
+			occupied.ID,
+		)
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		return err
 	}
@@ -69,8 +82,8 @@ func EnsureDefaultAdmin(database *gorm.DB) error {
 	admin := model.User{
 		ID:           "user_admin_" + uuid.NewString()[:8],
 		Platform:     "password",
-		OpenID:       "pwd_" + DefaultAdminNickname,
-		Nickname:     DefaultAdminNickname,
+		OpenID:       "pwd_" + nickname,
+		Nickname:     nickname,
 		PasswordHash: string(hashed),
 		AvatarURL:    "https://api.dicebear.com/7.x/avataaars/svg?seed=" + url.QueryEscape(DefaultAdminNickname),
 		Role:         model.UserRoleAdmin,
@@ -84,9 +97,9 @@ func EnsureDefaultAdmin(database *gorm.DB) error {
 		return err
 	}
 	if generated {
-		log.Printf("created root admin %q with generated password: %s — log in and change it immediately (or set ADMIN_INIT_PASSWORD before first start)", DefaultAdminNickname, password)
+		log.Printf("created root admin %q with generated password: %s — log in and change it immediately (or set ADMIN_INIT_PASSWORD before first start)", nickname, password)
 	} else {
-		log.Printf("created root admin %q with password from ADMIN_INIT_PASSWORD", DefaultAdminNickname)
+		log.Printf("created root admin %q with password from ADMIN_INIT_PASSWORD", nickname)
 	}
 	return nil
 }
