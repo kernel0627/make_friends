@@ -311,22 +311,15 @@ func (s *Server) ResolveAdminCase(c *gin.Context) {
 			return err
 		}
 
+		// Record the ruling in admin_resolution rather than rewriting the two
+		// sides' decisions: those stay as evidence of what each party claimed,
+		// and resolveFinalStatus honours admin_resolution above everything else.
 		updates := map[string]any{
 			"author_confirmed_at": now,
 			"updated_at":          now,
 			"settled_at":          now,
 			"final_status":        resolution,
-		}
-		switch resolution {
-		case score.SettlementCompleted:
-			updates["participant_decision"] = score.DecisionCompleted
-			updates["author_decision"] = score.DecisionCompleted
-		case score.SettlementCancelled:
-			updates["participant_decision"] = score.DecisionCancelled
-			updates["author_decision"] = score.DecisionCancelled
-		case score.SettlementNoShow:
-			updates["participant_decision"] = score.DecisionDisputed
-			updates["author_decision"] = score.DecisionNoShow
+			"admin_resolution":    resolution,
 		}
 		if strings.TrimSpace(req.Note) != "" {
 			updates["author_note"] = strings.TrimSpace(req.Note)
