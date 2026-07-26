@@ -226,6 +226,9 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `WECHAT_APP_ID` | 空 | 微信登录 App ID |
 | `WECHAT_APP_SECRET` | 空 | 微信登录密钥 |
 | `ADMIN_WEB_ORIGIN` | 空 | 额外允许的管理后台跨域来源，逗号分隔 |
+| `RATE_LIMIT_AUTH_PER_MIN` | `20` | 登录/注册/刷新每分钟上限，按来源 IP 和账号名分别计数；`0` 关闭 |
+| `RATE_LIMIT_SMART_DRAFT_PER_HOUR` | `30` | 每用户每小时智能草稿次数（每次都会调用付费 DeepSeek 接口）|
+| `RATE_LIMIT_FEEDBACK_PER_MIN` | `120` | 推荐曝光/点击上报每分钟上限，按用户或 IP 计数 |
 | `USE_REDIS` | `false` | 是否启用 Redis 能力 |
 | `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 |
@@ -257,6 +260,9 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 - Go 后端启动时自动执行 GORM 迁移。
 - 身份只来自签名 JWT；角色（是否管理员）一律以数据库为准，不信任令牌里的 role 声明。
 - 聊天记录接口需要登录并校验活动成员身份，非成员和匿名访问都会被拒绝。
+- 凭证接口、智能草稿和推荐上报都有限流，超限返回 `429` 并带 `Retry-After`。
+- 请求体上限 1 MiB；5xx 只返回通用错误码，具体原因写进服务端日志，不回传给客户端。
+- 镜像不再打包 `data/`，SQLite 库通过挂载卷提供（见 `docker-compose.yml`）。
 - DeepSeek Key 只应保存在后端环境变量中，不能放到小程序代码里。
 - 腾讯地图 Key 会在小程序客户端使用，应配置调用限制并避免提交到仓库。
 - `backend-model/` 下的模型权重和下载缓存不会进入 Git。
