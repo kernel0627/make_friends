@@ -312,8 +312,9 @@ func (s *Server) ResolveAdminCase(c *gin.Context) {
 		}
 
 		// Record the ruling in admin_resolution rather than rewriting the two
-		// sides' decisions: those stay as evidence of what each party claimed,
-		// and resolveFinalStatus honours admin_resolution above everything else.
+		// sides' decisions: those stay as evidence of what each party claimed.
+		// The ruling survives recalculation while the project and participation
+		// remain active; a later cancellation still ends the settlement.
 		updates := map[string]any{
 			"author_confirmed_at": now,
 			"updated_at":          now,
