@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass, field
 
 import redis
 
-from .embedder import LocalSentenceEmbedder
-from .rebuild_all import rebuild_post_embeddings, rebuild_user_embeddings, run_full_rebuild
 from .settings import Settings
 from .storage import connect
 from .trainer import train_ranking_model
@@ -18,6 +17,20 @@ logger = logging.getLogger(__name__)
 # abandon everything the previous process had read but not finished.
 CLAIM_IDLE_MS = 120_000
 ERROR_BACKOFF_SECONDS = 5
+
+
+@dataclass
+class WorkerCounters:
+    exposure_count: int = 0
+    click_count: int = 0
+    last_train_at: float = 0.0
+
+
+@dataclass
+class PendingBatch:
+    batches: list
+    processed: bool = False
+    ack_targets: list[tuple[str, str]] = field(default_factory=list)
 
 
 def ensure_group(client: redis.Redis, stream: str, group: str) -> None:
@@ -52,23 +65,37 @@ def claim_stale_messages(client: redis.Redis, settings: Settings, stream: str) -
     restart strands that process's in-flight messages in the pending list
     forever and their work is silently never done.
     """
-    try:
-        result = client.xautoclaim(
-            name=stream,
-            groupname=settings.consumer_group,
-            consumername=settings.consumer_name,
-            min_idle_time=CLAIM_IDLE_MS,
-            start_id="0-0",
-            count=50,
-        )
-    except redis.ResponseError as exc:
-        # XAUTOCLAIM needs Redis 6.2+; degrade rather than crash.
-        logger.warning("xautoclaim unavailable on %s: %s", stream, exc)
-        return []
-    # Redis returns (next_cursor, messages) or (next_cursor, messages, deleted).
-    if len(result) >= 2 and isinstance(result[1], list):
-        return result[1]
-    return []
+    claimed: list = []
+    cursor = "0-0"
+    seen_cursors: set[str] = set()
+    while True:
+        try:
+            result = client.xautoclaim(
+                name=stream,
+                groupname=settings.consumer_group,
+                consumername=settings.consumer_name,
+                min_idle_time=CLAIM_IDLE_MS,
+                start_id=cursor,
+                count=50,
+            )
+        except redis.ResponseError as exc:
+            # XAUTOCLAIM needs Redis 6.2+; degrade rather than crash.
+            logger.warning("xautoclaim unavailable on %s: %s", stream, exc)
+            return claimed
+        # Redis returns (next_cursor, messages) or
+        # (next_cursor, messages, deleted).
+        if len(result) < 2:
+            return claimed
+        next_cursor = as_str(result[0])
+        messages = result[1] if isinstance(result[1], list) else []
+        claimed.extend(messages)
+        if next_cursor == "0-0":
+            return claimed
+        if next_cursor == cursor or next_cursor in seen_cursors:
+            logger.warning("xautoclaim cursor stalled on %s at %s", stream, next_cursor)
+            return claimed
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
 
 
 def collect_work(batches, settings: Settings) -> tuple[set[str], set[str], bool, bool, list]:
@@ -131,6 +158,85 @@ def count_event_types(batches, settings: Settings) -> tuple[int, int]:
     return exposures, clicks
 
 
+def process_pending_batch(
+    pending: PendingBatch,
+    *,
+    client,
+    settings: Settings,
+    conn,
+    embedder,
+    counters: WorkerCounters,
+    rebuild_post_embeddings_fn,
+    rebuild_user_embeddings_fn,
+    run_full_rebuild_fn,
+    train_ranking_model_fn=train_ranking_model,
+    now_fn=time.time,
+) -> None:
+    """Apply one batch once, then ACK it idempotently.
+
+    The PendingBatch stays alive when this function raises. If business work
+    failed, ``processed`` remains false and the same messages are retried. If
+    only ACK failed, ``processed`` is already true, so the retry skips all
+    database/model work and only repeats the idempotent acknowledgements.
+    """
+    if not pending.processed:
+        post_ids, user_ids, need_full_rebuild, force_train, ack_targets = collect_work(
+            pending.batches,
+            settings,
+        )
+        batch_exposures, batch_clicks = count_event_types(pending.batches, settings)
+        next_exposure_count = counters.exposure_count + batch_exposures
+        next_click_count = counters.click_count + batch_clicks
+        next_last_train_at = counters.last_train_at
+
+        if need_full_rebuild:
+            run_full_rebuild_fn(settings)
+            next_last_train_at = now_fn()
+            next_exposure_count = 0
+            next_click_count = 0
+        else:
+            if post_ids:
+                rebuild_post_embeddings_fn(
+                    conn,
+                    embedder,
+                    model_name=settings.model_name,
+                    post_ids=sorted(post_ids),
+                    batch_size=settings.batch_size,
+                )
+            if user_ids:
+                rebuild_user_embeddings_fn(
+                    conn,
+                    model_name=settings.model_name,
+                    user_ids=sorted(user_ids),
+                )
+            now = now_fn()
+            if (
+                force_train
+                or next_exposure_count >= settings.train_exposure_threshold
+                or next_click_count >= settings.train_click_threshold
+                or now - counters.last_train_at >= settings.train_interval_seconds
+            ):
+                train_ranking_model_fn(
+                    conn,
+                    model_key=settings.model_key,
+                    model_name=settings.model_name,
+                )
+                next_last_train_at = now
+                next_exposure_count = 0
+                next_click_count = 0
+
+        # Commit in-memory counters only after every database/model operation
+        # for this batch completed successfully.
+        counters.exposure_count = next_exposure_count
+        counters.click_count = next_click_count
+        counters.last_train_at = next_last_train_at
+        pending.ack_targets = ack_targets
+        pending.processed = True
+
+    for stream, message_id in pending.ack_targets:
+        client.xack(stream, settings.consumer_group, message_id)
+
+
 def worker_loop(settings: Settings) -> None:
     if not settings.use_redis:
         raise RuntimeError("USE_REDIS must be true to run the recommender worker")
@@ -141,79 +247,84 @@ def worker_loop(settings: Settings) -> None:
     ensure_group(client, settings.events_stream, settings.consumer_group)
     ensure_group(client, settings.jobs_stream, settings.consumer_group)
 
+    # Keep the large embedding runtime out of module import so worker
+    # orchestration and retry semantics can be tested without torch.
+    from .embedder import LocalSentenceEmbedder
+    from .rebuild_all import (
+        rebuild_post_embeddings,
+        rebuild_user_embeddings,
+        run_full_rebuild,
+    )
+
     conn = connect(settings.db_path)
     embedder = LocalSentenceEmbedder(settings.model_dir, settings.preferred_device)
-    exposure_counter = 0
-    click_counter = 0
-    last_train_at = time.time()
+    counters = WorkerCounters(last_train_at=time.time())
     claimed_startup = False
+    pending: PendingBatch | None = None
 
     try:
         while True:
             try:
-                if not claimed_startup:
-                    # One sweep at startup so a previous crash does not leave
-                    # work stranded in the pending list.
-                    stale = []
-                    for stream in (settings.events_stream, settings.jobs_stream):
-                        messages = claim_stale_messages(client, settings, stream)
-                        if messages:
-                            stale.append((stream, messages))
-                    claimed_startup = True
-                    if stale:
-                        logger.info("reclaimed %d stale stream batches", len(stale))
-                        batches = stale
+                if pending is None:
+                    if not claimed_startup:
+                        # One complete sweep at startup so a previous crash
+                        # does not leave work stranded in the pending list.
+                        stale = []
+                        for stream in (settings.events_stream, settings.jobs_stream):
+                            messages = claim_stale_messages(client, settings, stream)
+                            if messages:
+                                stale.append((stream, messages))
+                        claimed_startup = True
+                        if stale:
+                            logger.info(
+                                "reclaimed %d stale stream messages",
+                                sum(len(messages) for _, messages in stale),
+                            )
+                            batches = stale
+                        else:
+                            batches = None
                     else:
                         batches = None
-                else:
-                    batches = None
 
-                if batches is None:
-                    batches = client.xreadgroup(
-                        groupname=settings.consumer_group,
-                        consumername=settings.consumer_name,
-                        streams={settings.events_stream: ">", settings.jobs_stream: ">"},
-                        count=50,
-                        block=5000,
-                    )
+                    if batches is None:
+                        batches = client.xreadgroup(
+                            groupname=settings.consumer_group,
+                            consumername=settings.consumer_name,
+                            streams={
+                                settings.events_stream: ">",
+                                settings.jobs_stream: ">",
+                            },
+                            count=50,
+                            block=5000,
+                        )
 
-                if not batches:
-                    if time.time() - last_train_at >= settings.train_interval_seconds:
-                        train_ranking_model(conn, model_key=settings.model_key, model_name=settings.model_name)
-                        last_train_at = time.time()
-                    continue
+                    if not batches:
+                        if (
+                            time.time() - counters.last_train_at
+                            >= settings.train_interval_seconds
+                        ):
+                            train_ranking_model(
+                                conn,
+                                model_key=settings.model_key,
+                                model_name=settings.model_name,
+                            )
+                            counters.last_train_at = time.time()
+                        continue
 
-                post_ids, user_ids, need_full_rebuild, force_train, ack_targets = collect_work(batches, settings)
-                batch_exposures, batch_clicks = count_event_types(batches, settings)
-                exposure_counter += batch_exposures
-                click_counter += batch_clicks
+                    pending = PendingBatch(batches=batches)
 
-                if need_full_rebuild:
-                    run_full_rebuild(settings)
-                    last_train_at = time.time()
-                    exposure_counter = 0
-                    click_counter = 0
-                else:
-                    if post_ids:
-                        rebuild_post_embeddings(conn, embedder, model_name=settings.model_name, post_ids=sorted(post_ids), batch_size=settings.batch_size)
-                    if user_ids:
-                        rebuild_user_embeddings(conn, model_name=settings.model_name, user_ids=sorted(user_ids))
-                    if (
-                        force_train
-                        or exposure_counter >= settings.train_exposure_threshold
-                        or click_counter >= settings.train_click_threshold
-                        or time.time() - last_train_at >= settings.train_interval_seconds
-                    ):
-                        train_ranking_model(conn, model_key=settings.model_key, model_name=settings.model_name)
-                        last_train_at = time.time()
-                        exposure_counter = 0
-                        click_counter = 0
-
-                # Acknowledge only after the work landed, so a crash mid-batch
-                # leaves the messages pending for the next run to reclaim.
-                for stream, message_id in ack_targets:
-                    client.xack(stream, settings.consumer_group, message_id)
-
+                process_pending_batch(
+                    pending,
+                    client=client,
+                    settings=settings,
+                    conn=conn,
+                    embedder=embedder,
+                    counters=counters,
+                    rebuild_post_embeddings_fn=rebuild_post_embeddings,
+                    rebuild_user_embeddings_fn=rebuild_user_embeddings,
+                    run_full_rebuild_fn=run_full_rebuild,
+                )
+                pending = None
             except KeyboardInterrupt:
                 raise
             except Exception:
