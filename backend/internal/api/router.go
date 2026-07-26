@@ -1115,7 +1115,32 @@ func (s *Server) ListChatMessages(c *gin.Context) {
 		return
 	}
 	var list []model.ChatMessage
-	if err := s.DB.Where("post_id = ?", postID).Order("created_at ASC").Find(&list).Error; err != nil {
+	query := s.DB.Where("post_id = ?", postID)
+	if rawSince := strings.TrimSpace(c.Query("sinceCreatedAt")); rawSince != "" {
+		sinceCreatedAt, err := strconv.ParseInt(rawSince, 10, 64)
+		if err != nil || sinceCreatedAt < 0 {
+			fail(c, http.StatusBadRequest, "INVALID_SINCE_CREATED_AT", "sinceCreatedAt must be a non-negative millisecond timestamp")
+			return
+		}
+		limit := 200
+		if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+			value, err := strconv.Atoi(rawLimit)
+			if err != nil || value <= 0 {
+				fail(c, http.StatusBadRequest, "INVALID_LIMIT", "limit must be a positive integer")
+				return
+			}
+			limit = value
+		}
+		if limit > 500 {
+			limit = 500
+		}
+		// The timestamp boundary is inclusive. Multiple messages may share one
+		// millisecond, so clients merge by message ID before advancing.
+		query = query.Where("created_at >= ?", sinceCreatedAt).Limit(limit)
+	}
+	// Without sinceCreatedAt this deliberately retains the original complete
+	// history response, even if a caller happens to provide limit.
+	if err := query.Order("created_at ASC, id ASC").Find(&list).Error; err != nil {
 		serverError(c, err)
 		return
 	}

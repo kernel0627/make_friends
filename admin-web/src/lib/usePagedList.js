@@ -2,6 +2,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const KEYWORD_DEBOUNCE_MS = 300;
 
+export function requestDelayForFilters(filters) {
+  return filters?.keyword ? KEYWORD_DEBOUNCE_MS : 0;
+}
+
+export function fallbackPageForEmptyResult(activeFilters, payload) {
+  const page = Number(activeFilters?.page) || 1;
+  const pageSize = Number(payload?.pageSize || activeFilters?.pageSize) || 20;
+  const total = Math.max(0, Number(payload?.total) || 0);
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const lastPage = Math.max(1, Math.ceil(total / pageSize));
+  if (page > 1 && items.length === 0 && page > lastPage) {
+    return lastPage;
+  }
+  return 0;
+}
+
 /**
  * Drives a filtered, paginated admin list.
  *
@@ -32,6 +48,13 @@ export default function usePagedList(fetcher, initialFilters) {
       if (seq !== requestSeq.current) {
         return;
       }
+      const fallbackPage = fallbackPageForEmptyResult(activeFilters, payload);
+      if (fallbackPage > 0) {
+        // A destructive action may remove the last item on the last page.
+        // Move to the new last page and let the existing effect load it.
+        setFilters((prev) => ({ ...prev, page: fallbackPage }));
+        return;
+      }
       setData(payload);
       setError("");
     } catch (err) {
@@ -49,7 +72,7 @@ export default function usePagedList(fetcher, initialFilters) {
   useEffect(() => {
     // Typing in the keyword box should not fire a request per keystroke;
     // every other filter change applies immediately.
-    const delay = filters.keyword ? KEYWORD_DEBOUNCE_MS : 0;
+    const delay = requestDelayForFilters(filters);
     const timer = setTimeout(() => load(filters), delay);
     return () => clearTimeout(timer);
   }, [filters, load]);

@@ -1,4 +1,4 @@
-const { fetchChatMessages, sendChatMessage, connectChatRoom } = require('../../utils/chatApi')
+const { fetchChatMessages, sendChatMessage, connectChatRoom, mergeChatMessages } = require('../../utils/chatApi')
 const { ensurePageLogin, loginWithWechat, gotoLoginPage, gotoRegisterPage } = require('../../utils/auth')
 const { openPage } = require('../../utils/navigation')
 const { saveChatMessages } = require('../../utils/store')
@@ -11,6 +11,7 @@ Page({
     messages: [],
     title: '',
     lastMsgId: '',
+    lastCreatedAt: 0,
     inputText: '',
     sending: false,
   },
@@ -20,31 +21,60 @@ Page({
     const title = decodeURIComponent((options && options.title) || '聊天室')
     wx.setNavigationBarTitle({ title })
     this.setData({ postId: id, title })
-    if (ensurePageLogin(this)) {
-      this.loadMessages()
-      this.openLiveConnection()
-    }
+    this._pageActive = true
+    this.initializeChatRoom()
   },
 
   onShow() {
-    if (ensurePageLogin(this) && this.data.postId) {
-      this.loadMessages()
-      this.openLiveConnection()
-    }
+    this._pageActive = true
+    this.initializeChatRoom()
   },
 
   onHide() {
+    this._pageActive = false
     this.closeLiveConnection()
   },
 
   onUnload() {
+    this._pageActive = false
     this.closeLiveConnection()
   },
 
+  initializeChatRoom() {
+    if (!ensurePageLogin(this) || !this.data.postId) return Promise.resolve()
+    if (this._initializing) return this._initializing
+
+    const incremental = Boolean(this._initialSyncDone)
+    const options = incremental && this.data.lastCreatedAt > 0
+      ? { sinceCreatedAt: this.data.lastCreatedAt, limit: 200 }
+      : undefined
+    const initializing = this.loadMessages(options)
+      .then(() => {
+        this._initialSyncDone = true
+        if (this._pageActive) {
+          this.openLiveConnection()
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (this._initializing === initializing) {
+          this._initializing = null
+        }
+      })
+    this._initializing = initializing
+    return initializing
+  },
+
   openLiveConnection() {
-    if (this._chatConnection || !this.data.postId) return
+    if ((this._chatConnection && !this._chatConnection.closed) || !this.data.postId) return
     this._chatConnection = connectChatRoom(this.data.postId, {
       onMessage: (message) => this.appendMessage(message),
+      onStatusChange: (status) => {
+        if (status === 'unauthorized' && this._chatConnection) {
+          this._chatConnection = null
+        }
+      },
+      sinceCreatedAt: this.data.lastCreatedAt,
     })
   },
 
@@ -59,13 +89,13 @@ Page({
   appendMessage(message) {
     if (!message || !message.id) return
     const existing = this.data.messages || []
-    if (existing.some((item) => item.id === message.id)) return
-
-    const next = existing.concat(message).sort((a, b) => a.createdAt - b.createdAt)
+    const next = mergeChatMessages(existing, [message])
+    if (next.length === existing.length && existing.some((item) => item.id === message.id)) return
     this.persistMessages(next)
     this.setData({
       messages: next,
       lastMsgId: next.length ? next[next.length - 1].id : '',
+      lastCreatedAt: next.length ? next[next.length - 1].createdAt : 0,
     })
   },
 
@@ -78,15 +108,21 @@ Page({
     saveChatMessages(app.globalData.chatMessages)
   },
 
-  loadMessages() {
-    fetchChatMessages(this.data.postId).then((messages) => {
-      this.persistMessages(messages)
+  loadMessages(options) {
+    return fetchChatMessages(this.data.postId, options).then((messages) => {
+      const next = options && options.sinceCreatedAt !== undefined
+        ? mergeChatMessages(this.data.messages || [], messages)
+        : mergeChatMessages([], messages)
+      this.persistMessages(next)
       this.setData({
-        messages,
-        lastMsgId: messages.length ? messages[messages.length - 1].id : '',
+        messages: next,
+        lastMsgId: next.length ? next[next.length - 1].id : '',
+        lastCreatedAt: next.length ? next[next.length - 1].createdAt : 0,
       })
+      return next
     }).catch((err) => {
       wx.showToast({ title: (err && err.message) || '加载消息失败', icon: 'none' })
+      throw err
     })
   },
 
@@ -147,8 +183,7 @@ Page({
     loginWithWechat().then(() => {
       this.setData({ showLoginModal: false })
       if (ensurePageLogin(this)) {
-        this.loadMessages()
-        this.openLiveConnection()
+        this.initializeChatRoom()
       }
       wx.showToast({ title: '登录成功', icon: 'success' })
     }).catch((err) => {
