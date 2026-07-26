@@ -364,17 +364,19 @@ func ensureSettlementsTx(tx *gorm.DB, post model.Post, relations []participantRe
 }
 
 func resolveFinalStatus(post model.Post, relation participantRelation, row model.PostParticipantSettlement, nowMS int64) string {
-	// An admin ruling on a dispute is the final word: it must survive every
-	// later recalculation, otherwise the parties' own conflicting decisions
-	// would immediately re-derive the dispute and reopen the case.
-	if adminResolution := strings.TrimSpace(row.AdminResolution); adminResolution != "" {
-		return adminResolution
-	}
+	// Cancellation ends the settlement relationship. It must take precedence
+	// even when an administrator ruled on an earlier dispute.
 	if post.CancelledAt > 0 {
 		return SettlementCancelled
 	}
 	if relation.Status == ParticipantStatusCancelled {
 		return SettlementCancelled
+	}
+	// For a relationship that still exists, an admin ruling is durable across
+	// later recalculations so the parties' conflicting decisions do not reopen
+	// a resolved case.
+	if adminResolution := strings.TrimSpace(row.AdminResolution); adminResolution != "" {
+		return adminResolution
 	}
 
 	participantDecision := strings.TrimSpace(row.ParticipantDecision)

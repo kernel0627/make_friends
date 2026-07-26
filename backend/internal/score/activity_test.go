@@ -100,7 +100,8 @@ func TestResolveFinalStatusMatrix(t *testing.T) {
 		{"cancelled relation wins", openPost, cancelledRelation, DecisionCompleted, DecisionCompleted, "", SettlementCancelled},
 		{"admin no_show beats dispute", openPost, active, DecisionDisputed, DecisionNoShow, SettlementNoShow, SettlementNoShow},
 		{"admin completed beats dispute", openPost, active, DecisionDisputed, DecisionNoShow, SettlementCompleted, SettlementCompleted},
-		{"admin ruling beats cancelled post", cancelledPost, active, DecisionDisputed, "", SettlementCompleted, SettlementCompleted},
+		{"cancelled post beats admin ruling", cancelledPost, active, DecisionDisputed, "", SettlementCompleted, SettlementCancelled},
+		{"cancelled relation beats admin ruling", openPost, cancelledRelation, DecisionDisputed, "", SettlementNoShow, SettlementCancelled},
 	}
 
 	for _, tc := range cases {
@@ -113,6 +114,110 @@ func TestResolveFinalStatusMatrix(t *testing.T) {
 			got := resolveFinalStatus(tc.post, tc.relation, row, 1000)
 			if got != tc.want {
 				t.Fatalf("want %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestCancellationOverridesAdminRulingAndRemovesOutcomeCredits(t *testing.T) {
+	cases := []struct {
+		name       string
+		cancel     func(*testing.T, *gorm.DB, string, string, int64)
+		wantLedger string
+		wantUser   func(string, string) string
+	}{
+		{
+			name: "project cancellation",
+			cancel: func(t *testing.T, db *gorm.DB, postID, _ string, now int64) {
+				t.Helper()
+				if err := db.Model(&model.Post{}).Where("id = ?", postID).
+					Update("cancelled_at", now).Error; err != nil {
+					t.Fatalf("cancel post failed: %v", err)
+				}
+			},
+			wantLedger: LedgerOrganizerCancelled,
+			wantUser: func(authorID, _ string) string {
+				return authorID
+			},
+		},
+		{
+			name: "participant cancellation",
+			cancel: func(t *testing.T, db *gorm.DB, postID, participantID string, now int64) {
+				t.Helper()
+				if err := db.Model(&model.PostParticipant{}).
+					Where("post_id = ? AND user_id = ?", postID, participantID).
+					Updates(map[string]any{
+						"status":       ParticipantStatusCancelled,
+						"cancelled_at": now,
+					}).Error; err != nil {
+					t.Fatalf("cancel relation failed: %v", err)
+				}
+			},
+			wantLedger: LedgerParticipantCancelled,
+			wantUser: func(_, participantID string) string {
+				return participantID
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openScoreTestDB(t)
+			now := time.Now().UnixMilli()
+			postID := "post_cancel_after_ruling"
+			authorID, participantID := seedClosedPost(t, db, postID, now)
+
+			if err := RecalculatePostActivityScores(db, postID, now); err != nil {
+				t.Fatalf("initial recalculate failed: %v", err)
+			}
+			if err := db.Model(&model.PostParticipantSettlement{}).
+				Where("post_id = ? AND user_id = ?", postID, participantID).
+				Updates(map[string]any{
+					"participant_decision": DecisionDisputed,
+					"author_decision":      DecisionNoShow,
+					"admin_resolution":     SettlementNoShow,
+					"final_status":         SettlementNoShow,
+					"settled_at":           now,
+				}).Error; err != nil {
+				t.Fatalf("seed admin ruling failed: %v", err)
+			}
+			if err := RecalculatePostActivityScores(db, postID, now+1000); err != nil {
+				t.Fatalf("recalculate ruling failed: %v", err)
+			}
+
+			tc.cancel(t, db, postID, participantID, now+2000)
+			if err := RecalculatePostActivityScores(db, postID, now+3000); err != nil {
+				t.Fatalf("recalculate cancellation failed: %v", err)
+			}
+			if err := RecalculatePostActivityScores(db, postID, now+4000); err != nil {
+				t.Fatalf("repeat recalculation failed: %v", err)
+			}
+
+			if got := settlementRow(t, db, postID, participantID).FinalStatus; got != SettlementCancelled {
+				t.Fatalf("cancellation must override admin ruling, got %q", got)
+			}
+			var outcomeRows int64
+			if err := db.Model(&model.CreditLedger{}).
+				Where("post_id = ? AND source_type IN ?", postID, []string{
+					LedgerParticipantCompleted,
+					LedgerOrganizerCompleted,
+					LedgerParticipantNoShow,
+				}).
+				Count(&outcomeRows).Error; err != nil {
+				t.Fatalf("count stale outcome ledgers failed: %v", err)
+			}
+			if outcomeRows != 0 {
+				t.Fatalf("completed/no-show ledgers must be removed after cancellation, got %d", outcomeRows)
+			}
+			var cancellationRows int64
+			if err := db.Model(&model.CreditLedger{}).
+				Where("post_id = ? AND user_id = ? AND source_type = ?",
+					postID, tc.wantUser(authorID, participantID), tc.wantLedger).
+				Count(&cancellationRows).Error; err != nil {
+				t.Fatalf("count cancellation ledger failed: %v", err)
+			}
+			if cancellationRows != 1 {
+				t.Fatalf("expected one %s ledger after repeated recalculation, got %d", tc.wantLedger, cancellationRows)
 			}
 		})
 	}
