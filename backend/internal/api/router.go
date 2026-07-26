@@ -46,9 +46,19 @@ const contextTokenJTIKey = "tokenJTI"
 func NewRouter(db *gorm.DB) *gin.Engine {
 	useRedis := envBool("USE_REDIS", false)
 	redisClient := buildRedisClient(useRedis)
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if jwtSecret == "" || jwtSecret == "dev_secret_change_me" {
+		if gin.Mode() == gin.ReleaseMode {
+			log.Fatal("JWT_SECRET must be set to a non-default value in release mode")
+		}
+		if jwtSecret == "" {
+			jwtSecret = "dev_secret_change_me"
+		}
+		log.Printf("WARNING: using insecure development JWT secret; set JWT_SECRET before deploying")
+	}
 	s := &Server{
 		DB:            db,
-		JWTSecret:     envOrDefault("JWT_SECRET", "dev_secret_change_me"),
+		JWTSecret:     jwtSecret,
 		WechatAppID:   os.Getenv("WECHAT_APP_ID"),
 		WechatSecret:  os.Getenv("WECHAT_APP_SECRET"),
 		HTTPClient:    &http.Client{Timeout: 8 * time.Second},
@@ -67,7 +77,10 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		v1.POST("/auth/mock-login", s.MockLogin)
+		if envBool("ENABLE_MOCK_LOGIN", false) {
+			log.Printf("WARNING: /auth/mock-login is enabled; never enable this in production")
+			v1.POST("/auth/mock-login", s.MockLogin)
+		}
 		v1.POST("/auth/wechat-login", s.WechatLogin)
 		v1.POST("/auth/register", s.Register)
 		v1.POST("/auth/password-login", s.PasswordLogin)
@@ -85,7 +98,6 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 		v1.POST("/recommendations/click", s.ReportRecommendationClick)
 		v1.GET("/ws/chat", s.WSChat)
 
-		v1.GET("/chats/:postId/messages", s.ListChatMessages)
 		authed := v1.Group("")
 		authed.Use(s.RequireAuth())
 		{
@@ -108,6 +120,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			authed.POST("/posts/:id/settlement/participant", s.UpsertParticipantSettlement)
 			authed.POST("/posts/:id/settlement/author", s.UpsertAuthorSettlement)
 			authed.POST("/posts/:id/settlement/cancel-all", s.CancelAllSettlement)
+			authed.GET("/chats/:postId/messages", s.ListChatMessages)
 			authed.POST("/chats/:postId/messages", s.SendChatMessage)
 			authed.POST("/posts/:id/reviews", s.UpsertReviews)
 			admin := authed.Group("/admin")
@@ -1010,7 +1023,17 @@ func (s *Server) ClosePost(c *gin.Context) {
 }
 
 func (s *Server) ListChatMessages(c *gin.Context) {
+	userID := mustUserID(c)
 	postID := c.Param("postId")
+	isMember, err := s.isPostMember(postID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query post member failed"})
+		return
+	}
+	if !isMember {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only participants can read messages"})
+		return
+	}
 	var list []model.ChatMessage
 	if err := s.DB.Where("post_id = ?", postID).Order("created_at ASC").Find(&list).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1206,11 +1229,6 @@ func (s *Server) UpsertReviews(c *gin.Context) {
 }
 
 func userIDFromRequest(c *gin.Context, jwtSecret string) (string, string, string, bool) {
-	id := strings.TrimSpace(c.GetHeader("X-User-ID"))
-	if id != "" {
-		role := model.NormalizeUserRole(c.GetHeader("X-User-Role"))
-		return id, role, "", true
-	}
 	token := bearerTokenFromHeader(c)
 	if token != "" {
 		claims, err := auth.ParseClaims(token, jwtSecret)
@@ -1231,7 +1249,7 @@ func optionalUserIDFromRequest(c *gin.Context, jwtSecret string) string {
 
 func (s *Server) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, role, jti, ok := userIDFromRequest(c, s.JWTSecret)
+		userID, _, jti, ok := userIDFromRequest(c, s.JWTSecret)
 		if !ok {
 			fail(c, http.StatusUnauthorized, "AUTH_REQUIRED", "missing user identity")
 			c.Abort()
@@ -1251,7 +1269,12 @@ func (s *Server) RequireAuth() gin.HandlerFunc {
 			}
 			c.Set(contextTokenJTIKey, jti)
 		}
-		resolvedRole, rootAdmin, deleted := s.resolveUserAccess(userID, role)
+		resolvedRole, rootAdmin, deleted, found := s.resolveUserAccess(userID)
+		if !found {
+			fail(c, http.StatusUnauthorized, "USER_NOT_FOUND", "user no longer exists")
+			c.Abort()
+			return
+		}
 		if deleted {
 			fail(c, http.StatusUnauthorized, "USER_DISABLED", "account has been disabled")
 			c.Abort()
@@ -1368,7 +1391,7 @@ type authTokens struct {
 }
 
 func (s *Server) issueAuth(userID string) (authTokens, error) {
-	role := s.resolveUserRole(userID, "")
+	role := s.resolveUserRole(userID)
 	accessToken, err := auth.SignToken(userID, s.JWTSecret, s.TokenExpireHr, role)
 	if err != nil {
 		return authTokens{}, err
@@ -1405,7 +1428,7 @@ func (s *Server) rotateRefresh(record model.RefreshToken) (authTokens, error) {
 			return err
 		}
 
-		role := s.resolveUserRole(record.UserID, "")
+		role := s.resolveUserRole(record.UserID)
 		accessToken, err := auth.SignToken(record.UserID, s.JWTSecret, s.TokenExpireHr, role)
 		if err != nil {
 			return err

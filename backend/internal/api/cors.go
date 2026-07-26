@@ -27,13 +27,15 @@ func adminWebCORS() gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		c.Header("Vary", "Origin")
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		if origin != "" {
 			if _, ok := allowedOrigins[origin]; ok {
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Access-Control-Allow-Credentials", "true")
-				c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-User-ID, X-User-Role")
-				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+				c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+				c.Header("Access-Control-Max-Age", "600")
 			}
 		}
 		if c.Request.Method == http.MethodOptions {
