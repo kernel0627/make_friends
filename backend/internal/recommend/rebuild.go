@@ -24,6 +24,10 @@ type tagAccumulator struct {
 	LastEventAt   int64
 }
 
+// DefaultRankingWeights seeds the ranking model before the Python trainer has
+// published one. It must cover every feature buildPostSignal computes: the
+// scorer looks weights up by name and a missing name scores as zero. Keep this
+// in sync with recommender/features.py default_weights().
 func DefaultRankingWeights() map[string]float64 {
 	return map[string]float64{
 		"embedding_cosine":                     0.46,
@@ -35,6 +39,7 @@ func DefaultRankingWeights() map[string]float64 {
 		"interaction_heat":                     0.06,
 		"freshness":                            0.08,
 		"joinability":                          0.06,
+		"joinability_ratio":                    0.06,
 		"author_rating_score":                  0.07,
 		"author_credit_score":                  0.06,
 		"author_activity_score_count":          0.03,
