@@ -126,24 +126,38 @@ npm run dev
 
 访问 `http://127.0.0.1:5173`。默认 API 地址是 `http://127.0.0.1:8080`，可通过 `VITE_API_BASE` 覆盖。
 
-本地管理员账号：
+管理员账号：
 
-- `admin / 123456`
-- `admin1 / 123456`
-- `admin2 / 123456`
+首次启动时，如果库里没有任何可用管理员，后端会自动创建一个 `admin` 账号。密码取自
+`ADMIN_INIT_PASSWORD`；未设置时会随机生成一个并打印到启动日志里（只打印这一次），请登录后
+立即修改。
 
-这些账号只适合本地开发，部署前必须修改默认密码。
+后端不会再在每次启动时重建或改写已有账号，因此：
+
+- 被软删除的管理员不会自动复活
+- 占用了 `admin` 昵称的普通用户不会被自动提升为管理员
+- 已有账号的密码不会被重置
+
+如果你的库是从旧版本升级上来的，里面的 `admin` / `admin1` / `admin2` 仍然是旧的默认弱密码，
+**请手动逐个改掉**。
 
 ### 4. 启动微信小程序
 
 在微信开发者工具中直接导入 `frontend/` 目录。
 
-小程序接口地址和地图配置位于 `frontend/utils/config.js`：
+小程序接口地址和地图配置位于 `frontend/utils/config.js`。该文件按环境分组，发布前把 `ENV`
+改成 `'prod'`，并把 `prod` 段里的 HTTPS/WSS 域名填成实际部署地址：
 
 ```js
-const API_BASE_URL = 'http://127.0.0.1:8080/api/v1'
-const TENCENT_MAP_KEY = ''
+const ENV = 'dev'   // 发布前改成 'prod'
+
+const ENV_CONFIG = {
+  dev:  { API_BASE_URL: 'http://127.0.0.1:8080/api/v1', WS_BASE_URL: 'ws://127.0.0.1:8080/api/v1' },
+  prod: { API_BASE_URL: 'https://example.com/api/v1',   WS_BASE_URL: 'wss://example.com/api/v1' },
+}
 ```
+
+聊天室会优先走 WebSocket（需要后端启用 Redis），连不上时自动降级为轮询。
 
 仓库不会提交真实地图 Key。需要地点搜索时，请只在本地填写，并避免把 Key 提交到公共仓库。`frontend/project.private.config.json` 同样属于本机配置，已被 Git 忽略。
 
@@ -206,9 +220,12 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | 配置 | 默认值 | 用途 |
 | --- | --- | --- |
 | `BACKEND_ADDR` | `:8080` | 后端监听地址 |
-| `JWT_SECRET` | 开发默认值 | JWT 签名密钥，部署时必须更换 |
+| `JWT_SECRET` | 开发默认值 | JWT 签名密钥。release 模式下若为空或仍是默认值，服务会直接拒绝启动 |
+| `ADMIN_INIT_PASSWORD` | 空 | 首次创建 `admin` 时使用的密码；留空则随机生成并打印到日志 |
+| `ENABLE_MOCK_LOGIN` | `false` | 是否开放 `/auth/mock-login`（免凭证换取 JWT，**仅限本地开发**） |
 | `WECHAT_APP_ID` | 空 | 微信登录 App ID |
 | `WECHAT_APP_SECRET` | 空 | 微信登录密钥 |
+| `ADMIN_WEB_ORIGIN` | 空 | 额外允许的管理后台跨域来源，逗号分隔 |
 | `USE_REDIS` | `false` | 是否启用 Redis 能力 |
 | `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
 | `REDIS_PASSWORD` | 空 | Redis 密码 |
@@ -229,7 +246,7 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `/api/v1/auth/*` | 注册、登录、刷新令牌和当前用户 |
 | `/api/v1/posts/*` | 活动列表、发布、报名、关闭、结算和评价 |
 | `/api/v1/calendar/*` | 活动日历和邀请日历 |
-| `/api/v1/chats/*`、`/api/v1/ws/chat` | 历史消息、发送消息和实时聊天 |
+| `/api/v1/chats/*`、`/api/v1/ws/chat` | 历史消息、发送消息和实时聊天（均需登录，且必须是该活动成员） |
 | `/api/v1/recommendations/*` | 推荐曝光与点击反馈 |
 | `POST /api/v1/posts/smart-draft` | DeepSeek 智能活动草稿 |
 | `/api/v1/admin/*` | 管理后台接口 |
@@ -238,6 +255,8 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 
 - SQLite 数据位于 `backend/data/app.db`，属于本地运行状态，不进入 Git。
 - Go 后端启动时自动执行 GORM 迁移。
+- 身份只来自签名 JWT；角色（是否管理员）一律以数据库为准，不信任令牌里的 role 声明。
+- 聊天记录接口需要登录并校验活动成员身份，非成员和匿名访问都会被拒绝。
 - DeepSeek Key 只应保存在后端环境变量中，不能放到小程序代码里。
 - 腾讯地图 Key 会在小程序客户端使用，应配置调用限制并避免提交到仓库。
 - `backend-model/` 下的模型权重和下载缓存不会进入 Git。
@@ -267,10 +286,10 @@ npm ci
 npm run build
 ```
 
-Python 推荐模块语法检查：
+Python 推荐模块测试（只依赖 scikit-learn，不需要 torch 或 Redis）：
 
 ```bash
-python3 -m compileall -q backend/recommender
+cd backend && python -m pytest recommender/tests -q
 ```
 
 ## 进一步文档
