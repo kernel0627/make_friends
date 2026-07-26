@@ -155,6 +155,27 @@ class TestTrainingWindow:
         assert all(len(row) == len(FEATURE_NAMES) for row in x_rows)
         assert len(x_rows) == len(y_rows)
 
+    def test_cutoff_exposure_keeps_its_valid_later_click(self):
+        conn = make_db()
+        now = 1_700_000_000_000
+        cutoff = now - 30 * DAY_MS
+        seed_impressions(conn, now, recent=0, old=0)
+        conn.execute(
+            "INSERT INTO feed_exposures(request_id, user_id, session_id, post_id, created_at)"
+            " VALUES ('edge_req', 'viewer', 'sess', 'post0', ?)",
+            (cutoff,),
+        )
+        conn.execute(
+            "INSERT INTO feed_clicks(request_id, user_id, session_id, post_id, created_at)"
+            " VALUES ('edge_req', 'viewer', 'sess', 'post0', ?)",
+            (cutoff + DAY_MS,),
+        )
+
+        _, labels, stats, _ = build_training_examples(conn, "m", now)
+        assert labels == [1]
+        assert stats["exposureCount"] == 1
+        assert stats["clickCount"] == 1
+
 
 class TestTrainer:
     def test_falls_back_when_samples_are_insufficient(self):
