@@ -38,6 +38,10 @@ class InvestigationState(TypedDict, total=False):
     report: str
     error: str | None
 
+    # Internal (LLM mode)
+    _done: bool
+    _key_findings: list[str]
+
 
 # PLACEHOLDER_GRAPH_NODES
 
@@ -195,6 +199,43 @@ def build_graph() -> StateGraph:
     graph.add_conditional_edges(
         "investigate",
         should_continue_investigating,
+        {"continue": "investigate", "done": "evaluate"},
+    )
+    graph.add_edge("evaluate", "report")
+    graph.add_edge("report", END)
+
+    return graph
+
+
+def build_llm_graph() -> StateGraph:
+    """Construct the LLM-powered investigation graph.
+
+    Uses Claude for claims extraction, tool selection, evidence evaluation,
+    and report generation. Falls back to skeleton nodes for load_case (always
+    deterministic).
+    """
+    from .llm_nodes import (
+        extract_claims_llm,
+        investigate_llm,
+        should_continue_llm,
+        evaluate_llm,
+        report_llm,
+    )
+
+    graph = StateGraph(InvestigationState)
+
+    graph.add_node("load_case", load_case_node)
+    graph.add_node("extract_claims", extract_claims_llm)
+    graph.add_node("investigate", investigate_llm)
+    graph.add_node("evaluate", evaluate_llm)
+    graph.add_node("report", report_llm)
+
+    graph.set_entry_point("load_case")
+    graph.add_edge("load_case", "extract_claims")
+    graph.add_edge("extract_claims", "investigate")
+    graph.add_conditional_edges(
+        "investigate",
+        should_continue_llm,
         {"continue": "investigate", "done": "evaluate"},
     )
     graph.add_edge("evaluate", "report")

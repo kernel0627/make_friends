@@ -8,12 +8,12 @@ from typing import Any
 
 from .client import BackendClient
 from .config import Config, load_config
-from .graph import InvestigationState, build_graph
+from .graph import InvestigationState, build_graph, build_llm_graph
 
 logger = logging.getLogger(__name__)
 
 
-def run_investigation(case_id: str, config: Config | None = None) -> dict[str, Any]:
+def run_investigation(case_id: str, config: Config | None = None, use_llm: bool = True) -> dict[str, Any]:
     """Execute a full investigation for the given case.
 
     Returns the final state dict including the report.
@@ -33,7 +33,7 @@ def run_investigation(case_id: str, config: Config | None = None) -> dict[str, A
 
     try:
         # Build and compile the graph
-        graph = build_graph()
+        graph = build_llm_graph() if use_llm else build_graph()
         app = graph.compile()
 
         # Execute
