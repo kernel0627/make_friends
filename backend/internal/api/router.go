@@ -77,6 +77,9 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "time": time.Now().UnixMilli()})
 	})
 
+	// Internal agent API (service-to-service, shared-secret auth)
+	RegisterAgentRoutes(r, s)
+
 	v1 := r.Group("/api/v1")
 	{
 		if envBool("ENABLE_MOCK_LOGIN", false) {
@@ -188,7 +191,8 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 func NewServer(db *gorm.DB) *Server {
 	// Keep test-created databases and older local databases forward compatible
 	// with the moderation/case tables introduced after the initial schema.
-	if err := db.AutoMigrate(&model.ModerationRecord{}, &model.CaseEvent{}, &model.OutboxEvent{}); err != nil {
+	if err := db.AutoMigrate(&model.ModerationRecord{}, &model.CaseEvent{}, &model.OutboxEvent{},
+		&model.DomainEvent{}, &model.AgentRun{}, &model.AgentStep{}); err != nil {
 		log.Printf("WARNING: moderation schema migration failed: %v", err)
 	}
 	useRedis := envBool("USE_REDIS", false)
@@ -978,6 +982,7 @@ func (s *Server) CreatePost(c *gin.Context) {
 		}).Error; err != nil {
 			return err
 		}
+		emitDomainEvent(tx, "post.created", "post", post.ID, userID, map[string]string{"title": post.Title, "category": post.Category})
 		return s.createPostInvitationsTx(tx, post.ID, userID, req.invitationInputs(), now)
 	}); err != nil {
 		serverError(c, err)
@@ -1058,6 +1063,7 @@ func (s *Server) UpdatePost(c *gin.Context) {
 		if result.RowsAffected == 0 {
 			return gorm.ErrInvalidData
 		}
+		emitDomainEvent(tx, "post.updated", "post", post.ID, userID, map[string]string{"title": post.Title, "category": post.Category})
 		return nil
 	}); err != nil {
 		if errors.Is(err, gorm.ErrInvalidData) {
@@ -1109,6 +1115,9 @@ func (s *Server) JoinPost(c *gin.Context) {
 			return errJoinPostPending
 		}
 		_, err := s.joinPostTx(tx, postID, userID, now)
+		if err == nil {
+			emitDomainEvent(tx, "participant.joined", "post", postID, userID, nil)
+		}
 		return err
 	})
 
@@ -1169,6 +1178,7 @@ func (s *Server) ClosePost(c *gin.Context) {
 			if err := tx.Save(&post).Error; err != nil {
 				return err
 			}
+			emitDomainEvent(tx, "post.closed", "post", post.ID, userID, nil)
 		}
 		return score.RecalculatePostActivityScoresTx(tx, post, now)
 	})

@@ -1,0 +1,18 @@
+# Activity Case Review Agent dependencies
+# Install into conda `agent` environment
+
+# Core
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-anthropic>=0.3.0
+
+# HTTP client
+httpx>=0.27.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+
+# Utilities
+pydantic>=2.0.0
+python-dotenv>=1.0.0

@@ -79,6 +79,7 @@ func createCaseTx(tx *gorm.DB, caseType, sourceType, sourceID, postID, targetID,
 	if err := tx.Create(&event).Error; err != nil {
 		return row, err
 	}
+	emitDomainEvent(tx, "case.created", "case", row.ID, reporterID, map[string]string{"caseType": caseType, "postId": postID, "targetUserId": targetID})
 	return row, nil
 }
 
@@ -307,7 +308,11 @@ func (s *Server) DecideAdminCase(c *gin.Context) {
 			return err
 		}
 		payload, _ := json.Marshal(req)
-		return tx.Create(&model.CaseEvent{CaseID: caseID, EventType: "decision_made", ActorID: adminID, Payload: string(payload), CreatedAt: now}).Error
+		if err := tx.Create(&model.CaseEvent{CaseID: caseID, EventType: "decision_made", ActorID: adminID, Payload: string(payload), CreatedAt: now}).Error; err != nil {
+			return err
+		}
+		emitDomainEvent(tx, "case.decided", "case", caseID, adminID, map[string]string{"decision": decision})
+		return nil
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

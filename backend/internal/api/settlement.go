@@ -143,6 +143,7 @@ func (s *Server) CancelParticipation(c *gin.Context) {
 		if err := score.RecalculatePostActivityScoresTx(tx, post, now); err != nil {
 			return err
 		}
+		emitDomainEvent(tx, "participant.cancelled", "post", postID, userID, nil)
 		responsePost = post
 		return nil
 	})
@@ -425,7 +426,11 @@ func (s *Server) CancelAllSettlement(c *gin.Context) {
 		if err := tx.Save(&post).Error; err != nil {
 			return err
 		}
-		return score.RecalculatePostActivityScoresTx(tx, post, now)
+		if err := score.RecalculatePostActivityScoresTx(tx, post, now); err != nil {
+			return err
+		}
+		emitDomainEvent(tx, "post.cancelled_all", "post", postID, userID, nil)
+		return nil
 	})
 	if err != nil {
 		switch {

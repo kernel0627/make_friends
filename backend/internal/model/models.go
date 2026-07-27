@@ -146,7 +146,8 @@ type AdminCase struct {
 	TargetUserID     string `gorm:"size:64;not null;index" json:"targetUserId"`
 	ReporterUserID   string `gorm:"size:64;not null;index" json:"reporterUserId"`
 	ResolverUserID   string `gorm:"size:64;not null;default:'';index" json:"resolverUserId"`
-	Status           string `gorm:"size:16;not null;default:open;index" json:"status"`
+	AgentRunID       string `gorm:"size:64;not null;default:''" json:"agentRunId"`
+	Status           string `gorm:"size:24;not null;default:open;index" json:"status"`
 	Resolution       string `gorm:"size:32;not null;default:''" json:"resolution"`
 	ResolutionNote   string `gorm:"type:text;not null;default:''" json:"resolutionNote"`
 	ResolvedAt       int64  `gorm:"not null;default:0;index" json:"resolvedAt"`
@@ -315,4 +316,52 @@ type RevokedAccessToken struct {
 	JTI       string `gorm:"size:128;not null;uniqueIndex" json:"jti"`
 	ExpiresAt int64  `gorm:"not null;index" json:"expiresAt"`
 	CreatedAt int64  `gorm:"not null" json:"createdAt"`
+}
+
+// --- Domain Events (audit trail for Agent investigation) ---
+
+type DomainEvent struct {
+	ID            uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	EventType     string `gorm:"size:64;not null;index:idx_de_type" json:"eventType"`
+	AggregateType string `gorm:"size:32;not null;index:idx_de_agg" json:"aggregateType"`
+	AggregateID   string `gorm:"size:128;not null;index:idx_de_agg" json:"aggregateId"`
+	ActorID       string `gorm:"size:64;not null;index" json:"actorId"`
+	Payload       string `gorm:"type:text;not null;default:'{}'" json:"payload"`
+	CreatedAt     int64  `gorm:"not null;index" json:"createdAt"`
+}
+
+// --- Agent Run / Step (investigation trajectory) ---
+
+type AgentRun struct {
+	ID          string `gorm:"primaryKey;size:64" json:"id"`
+	CaseID      string `gorm:"size:64;not null;index" json:"caseId"`
+	Status      string `gorm:"size:24;not null;default:pending;index" json:"status"`
+	Model       string `gorm:"size:64;not null;default:''" json:"model"`
+	StepCount   int    `gorm:"not null;default:0" json:"stepCount"`
+	TokensUsed  int    `gorm:"not null;default:0" json:"tokensUsed"`
+	Report      string `gorm:"type:text;not null;default:''" json:"report"`
+	ErrorMsg    string `gorm:"type:text;not null;default:''" json:"errorMsg"`
+	StartedAt   int64  `gorm:"not null;default:0" json:"startedAt"`
+	CompletedAt int64  `gorm:"not null;default:0" json:"completedAt"`
+	CreatedAt   int64  `gorm:"not null;index" json:"createdAt"`
+}
+
+const (
+	AgentRunPending   = "pending"
+	AgentRunRunning   = "running"
+	AgentRunCompleted = "completed"
+	AgentRunFailed    = "failed"
+)
+
+type AgentStep struct {
+	ID         uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	RunID      string `gorm:"size:64;not null;index" json:"runId"`
+	StepIndex  int    `gorm:"not null" json:"stepIndex"`
+	Action     string `gorm:"size:64;not null" json:"action"`
+	Input      string `gorm:"type:text;not null;default:'{}'" json:"input"`
+	Output     string `gorm:"type:text;not null;default:'{}'" json:"output"`
+	Reasoning  string `gorm:"type:text;not null;default:''" json:"reasoning"`
+	LatencyMs  int    `gorm:"not null;default:0" json:"latencyMs"`
+	TokensUsed int    `gorm:"not null;default:0" json:"tokensUsed"`
+	CreatedAt  int64  `gorm:"not null" json:"createdAt"`
 }
