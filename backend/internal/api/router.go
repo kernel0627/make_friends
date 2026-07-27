@@ -192,7 +192,9 @@ func NewServer(db *gorm.DB) *Server {
 	// Keep test-created databases and older local databases forward compatible
 	// with the moderation/case tables introduced after the initial schema.
 	if err := db.AutoMigrate(&model.ModerationRecord{}, &model.CaseEvent{}, &model.OutboxEvent{},
-		&model.DomainEvent{}, &model.AgentRun{}, &model.AgentStep{}); err != nil {
+		&model.DomainEvent{}, &model.AgentRun{}, &model.AgentStep{},
+		&model.ContentSnapshot{}, &model.Notification{}, &model.Report{},
+		&model.CaseEvidence{}, &model.CaseDecision{}); err != nil {
 		log.Printf("WARNING: moderation schema migration failed: %v", err)
 	}
 	useRedis := envBool("USE_REDIS", false)

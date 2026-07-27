@@ -135,6 +135,9 @@ type CreditLedger struct {
 	Status         string `gorm:"size:16;not null;default:settled" json:"status"`
 	Note           string `gorm:"type:text;not null;default:''" json:"note"`
 	OperatorUserID string `gorm:"size:64;not null;default:'';index" json:"operatorUserId"`
+	ReversalOfID   uint64 `gorm:"not null;default:0;index" json:"reversalOfId"`
+	CaseID         string `gorm:"size:64;not null;default:'';index" json:"caseId"`
+	IdempotencyKey string `gorm:"size:128;not null;default:''" json:"idempotencyKey"`
 	CreatedAt      int64  `gorm:"not null;index" json:"createdAt"`
 	UpdatedAt      int64  `gorm:"not null" json:"updatedAt"`
 }
@@ -180,6 +183,7 @@ const (
 type ModerationRecord struct {
 	ID              string  `gorm:"primaryKey;size:64" json:"id"`
 	PostID          string  `gorm:"size:64;not null;index;uniqueIndex:uq_moderation_post_hash" json:"postId"`
+	SnapshotID      string  `gorm:"size:64;not null;default:''" json:"snapshotId"`
 	ContentHash     string  `gorm:"size:128;not null;uniqueIndex:uq_moderation_post_hash" json:"contentHash"`
 	Status          string  `gorm:"size:24;not null;default:pending;index" json:"status"`
 	MatchedPolicies string  `gorm:"type:text;not null;default:'[]'" json:"matchedPolicies"`
@@ -364,4 +368,74 @@ type AgentStep struct {
 	LatencyMs  int    `gorm:"not null;default:0" json:"latencyMs"`
 	TokensUsed int    `gorm:"not null;default:0" json:"tokensUsed"`
 	CreatedAt  int64  `gorm:"not null" json:"createdAt"`
+}
+
+// --- Evidence Layer (investigation support) ---
+
+// ContentSnapshot freezes post content at the time of moderation submission.
+type ContentSnapshot struct {
+	ID          string `gorm:"primaryKey;size:64" json:"id"`
+	PostID      string `gorm:"size:64;not null;index" json:"postId"`
+	Title       string `gorm:"size:255;not null" json:"title"`
+	Description string `gorm:"type:text;not null" json:"description"`
+	Address     string `gorm:"size:255;not null;default:''" json:"address"`
+	Category    string `gorm:"size:64;not null;default:''" json:"category"`
+	SubCategory string `gorm:"size:64;not null;default:''" json:"subCategory"`
+	MaxCount    int    `gorm:"not null;default:0" json:"maxCount"`
+	ContentHash string `gorm:"size:128;not null;index" json:"contentHash"`
+	SnapshotAt  int64  `gorm:"not null;index" json:"snapshotAt"`
+	CreatedAt   int64  `gorm:"not null" json:"createdAt"`
+}
+
+// Notification tracks whether users were notified of key changes.
+type Notification struct {
+	ID          string `gorm:"primaryKey;size:64" json:"id"`
+	UserID      string `gorm:"size:64;not null;index" json:"userId"`
+	PostID      string `gorm:"size:64;not null;index" json:"postId"`
+	Type        string `gorm:"size:32;not null;index" json:"type"`    // "activity_changed", "reminder", "settlement_request"
+	Channel     string `gorm:"size:16;not null" json:"channel"`       // "in_app", "push"
+	Status      string `gorm:"size:16;not null;index" json:"status"`  // "sent", "delivered", "failed", "read"
+	Payload     string `gorm:"type:text;not null;default:'{}'" json:"payload"`
+	SentAt      int64  `gorm:"not null" json:"sentAt"`
+	DeliveredAt int64  `gorm:"not null;default:0" json:"deliveredAt"`
+	ReadAt      int64  `gorm:"not null;default:0" json:"readAt"`
+	CreatedAt   int64  `gorm:"not null;index" json:"createdAt"`
+}
+
+// Report is a raw user-submitted report or appeal (multiple can merge into one case).
+type Report struct {
+	ID          string `gorm:"primaryKey;size:64" json:"id"`
+	CaseID      string `gorm:"size:64;not null;default:'';index" json:"caseId"`
+	ReporterID  string `gorm:"size:64;not null;index" json:"reporterId"`
+	TargetType  string `gorm:"size:32;not null" json:"targetType"`       // "post", "message", "user"
+	TargetID    string `gorm:"size:128;not null;index" json:"targetId"`
+	Reason      string `gorm:"type:text;not null" json:"reason"`
+	EvidenceIDs string `gorm:"type:text;not null;default:'[]'" json:"evidenceIds"` // JSON array
+	Status      string `gorm:"size:16;not null;default:pending;index" json:"status"`
+	CreatedAt   int64  `gorm:"not null;index" json:"createdAt"`
+}
+
+// CaseEvidence links a piece of evidence to a case with relevance context.
+type CaseEvidence struct {
+	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	CaseID       string `gorm:"size:64;not null;index" json:"caseId"`
+	EvidenceType string `gorm:"size:32;not null" json:"evidenceType"` // "domain_event", "chat_message", "content_snapshot", "credit_ledger", "notification"
+	EvidenceID   string `gorm:"size:128;not null" json:"evidenceId"`
+	AddedBy      string `gorm:"size:64;not null" json:"addedBy"`                           // "agent:run_xxx", "admin:user_xxx", "system"
+	Relevance    string `gorm:"size:16;not null;default:supporting" json:"relevance"`      // "key", "supporting", "context"
+	Note         string `gorm:"type:text;not null;default:''" json:"note"`
+	CreatedAt    int64  `gorm:"not null" json:"createdAt"`
+}
+
+// CaseDecision records each decision made on a case (supports initial, appeal, reopen).
+type CaseDecision struct {
+	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	CaseID       string `gorm:"size:64;not null;index" json:"caseId"`
+	DeciderID    string `gorm:"size:64;not null;index" json:"deciderId"` // admin user ID or "agent:run_xxx"
+	DecisionType string `gorm:"size:32;not null" json:"decisionType"`    // "initial", "appeal", "reopen"
+	Outcome      string `gorm:"size:32;not null" json:"outcome"`         // "upheld", "rejected", "insufficient_evidence", "escalate"
+	Reasoning    string `gorm:"type:text;not null;default:''" json:"reasoning"`
+	EvidenceRefs string `gorm:"type:text;not null;default:'[]'" json:"evidenceRefs"` // JSON: evidence IDs cited
+	Actions      string `gorm:"type:text;not null;default:'[]'" json:"actions"`      // JSON: backend actions taken
+	CreatedAt    int64  `gorm:"not null;index" json:"createdAt"`
 }

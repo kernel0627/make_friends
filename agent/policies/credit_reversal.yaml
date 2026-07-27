@@ -1,0 +1,42 @@
+id: credit_reversal
+version: "1.0"
+name: 信用分反转规则
+description: 判断信用分扣减是否应该被撤销
+
+# 应当反转
+should_reverse:
+  - 原扣分对应的事实判定被推翻（如证明用户确实参加了活动）
+  - 组织者单方面取消活动导致参与者被扣分
+  - 系统错误（结算状态与实际不符）
+  - 原扣分依据的案件被重新裁决为 "rejected" 或 "insufficient_evidence"
+
+# 不应反转
+should_not_reverse:
+  - 用户确实未参加且无合理抗辩
+  - 用户临时取消（在取消规则允许的处罚范围内）
+  - 用户已通过其他途径获得补偿
+
+# 证据标准
+evidence_standard:
+  required: 原信用流水记录 + 关联案件/活动
+  key_evidence:
+    - 聊天记录证明用户到场
+    - 多人证词
+    - 活动取消事件
+    - 组织者确认
+  insufficient:
+    - 仅用户自述"我去了"
+    - 仅凭信用分低请求恢复
+
+# 反转规则
+reversal_rules:
+  - 每笔扣分只能反转一次
+  - 反转必须关联具体案件（case_id）
+  - 反转必须记录操作人和理由
+  - 反转流水必须指向原流水（reversal_of_id）
+
+# 处置
+actions:
+  reverse: create_reversal_ledger, update_user_credit_score
+  partial_reverse: create_partial_reversal, manual_review_remaining
+  reject_appeal: close_case(rejected)

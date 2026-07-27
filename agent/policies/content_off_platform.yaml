@@ -1,0 +1,39 @@
+id: content_off_platform
+version: "1.0"
+name: 站外引流规则
+description: 判断活动是否存在站外引流行为
+
+# 明确违规
+violations:
+  - 活动核心目的是引导用户添加外部联系方式以进行交易
+  - 在聊天中反复主动推送个人联系方式并要求加好友
+  - 引导用户离开平台完成报名或付费
+  - 利用活动传播传销、诈骗信息
+
+# 允许
+permitted:
+  - 活动过程中为了协调时间/地点而交换联系方式
+  - 活动描述中提及"可加微信群方便通知"但活动本身在平台内组织
+  - 活动结束后参与者自行交换联系方式
+
+# 边界情况处理
+edge_cases:
+  - 目的判断：如果加好友是为了活动协调而非商业目的，倾向于允许
+  - 频率判断：同一用户在多个活动中重复使用同一引流话术，提高违规判定
+  - 上下文判断：相同文本在不同上下文中含义不同，需查看完整聊天
+
+# 证据标准
+evidence_standard:
+  required: 活动描述 + 群聊记录
+  supporting: 用户历史活动是否有类似模式
+  key_signals:
+    - 外部链接（非地图/导航）
+    - 明确的微信号/QQ号
+    - "加我"+"赚钱/收入/团队" 组合
+    - 短链接或二维码
+
+# 处置
+actions:
+  violation_confirmed: reject_post, warn_user
+  mlm_or_fraud: reject_post, ban_user, escalate_to_admin
+  borderline: manual_review

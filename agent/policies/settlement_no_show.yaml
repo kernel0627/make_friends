@@ -1,0 +1,58 @@
+id: settlement_no_show
+version: "1.0"
+name: 爽约判定规则
+description: 判断参与者是否构成爽约
+
+# 构成爽约的条件（需同时满足）
+conditions:
+  - 参与者在活动开始前未取消报名（即状态仍为 active）
+  - 参与者未出现在活动中
+  - 参与者未提前通知组织者无法参加（或通知时间过晚）
+
+# 不构成爽约
+defenses:
+  - 参与者在活动开始前 24 小时以上取消
+  - 参与者在活动开始前 2-24 小时取消，且通知到达组织者
+  - 组织者在活动前临时做出重大变更（地点、时间、费用），参与者因此无法参加
+  - 组织者自行取消活动
+  - 系统通知未能送达参与者
+
+# 重大变更定义
+material_change:
+  - 活动地点变更超过 5 公里
+  - 活动时间变更超过 2 小时
+  - 费用增加超过原金额的 50%
+  - 变更通知距活动开始不足 2 小时
+
+# 证据强度
+evidence_strength:
+  strong:
+    - 系统记录的取消事件及时间
+    - 活动变更事件（含旧/新值）
+    - 通知送达/失败记录
+    - 多名参与者一致证词
+  medium:
+    - 聊天中的确认/缺席消息
+    - 组织者的结算提交
+  weak:
+    - 单方陈述（组织者说对方没来 / 参与者说自己去了）
+    - 缺少回复（不等于未参加）
+    - 历史爽约记录（不能证明本次事实）
+
+# 历史记录使用规则
+history_usage:
+  可以用于: 案件优先级、风险评估、处罚力度
+  不可用于: 直接证明本次爽约事实
+
+# 证据标准
+evidence_standard:
+  required: 参与记录 + 结算记录
+  strongly_recommended: 聊天记录 + 通知记录
+  supporting: 领域事件时间线
+
+# 处置
+actions:
+  no_show_confirmed: penalty_credit(-15), mark_no_show
+  early_cancel: no_penalty
+  material_change_defense: reverse_penalty, warn_organizer
+  insufficient_evidence: escalate_to_admin

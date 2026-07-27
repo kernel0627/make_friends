@@ -1,0 +1,36 @@
+id: content_commercial
+version: "1.0"
+name: 商业推广内容规则
+description: 判断活动是否包含商业推广行为
+
+# 明确违规
+violations:
+  - 活动描述中包含商品购买链接或二维码
+  - 活动描述中包含明确的商业推销语句（如"限时折扣"、"购买优惠"）
+  - 活动以收取参与费用为主要目的（超过合理 AA 分摊）
+  - 活动实质为招商、招聘或培训付费活动
+
+# 允许
+permitted:
+  - AA 制分摊实际费用（场地费、餐费、门票等）
+  - 提及活动地点的商家名称
+  - 分享个人使用体验但不含购买引导
+  - 合理的物料分摊（如瑜伽垫清洗费、球拍租赁费）
+
+# 边界情况处理
+edge_cases:
+  - 费用合理性：人均费用不超过同类活动市场价的 1.5 倍视为合理
+  - 主观判断：如果收费是活动的附带而非核心目的，倾向于允许
+  - 历史行为：如用户历史多次发布类似收费活动，提高审查标准
+
+# 证据标准
+evidence_standard:
+  required: 活动描述文本
+  supporting: 用户历史活动记录、参与者反馈
+  insufficient: 仅凭活动标题或类目
+
+# 处置
+actions:
+  violation_confirmed: reject_post
+  borderline: manual_review
+  false_positive: approve_post
