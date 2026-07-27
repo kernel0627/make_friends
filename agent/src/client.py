@@ -18,6 +18,16 @@ class BackendClient:
 
     # --- Read tools ---
 
+    def list_cases(self, source_ref: str = "", status: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        params = {"limit": limit}
+        if source_ref:
+            params["source_ref"] = source_ref
+        if status:
+            params["status"] = status
+        r = self._client.get("/internal/agent/cases", params=params)
+        r.raise_for_status()
+        return r.json().get("cases", [])
+
     def get_case(self, case_id: str) -> dict[str, Any]:
         r = self._client.get(f"/internal/agent/case/{case_id}")
         r.raise_for_status()

@@ -61,6 +61,8 @@ func RegisterAgentRoutes(r *gin.Engine, s *Server) {
 		g.GET("/case/:id/notifications", s.agentGetNotifications)
 		g.GET("/case/:id/settlements", s.agentGetSettlements)
 		g.GET("/case/:id/credit-ledger", s.agentGetCreditLedger)
+		// Case lookup
+		g.GET("/cases", s.agentListCases)
 		// User
 		g.GET("/user/:id/profile", s.agentGetUserProfile)
 		g.GET("/user/:id/history", s.agentGetUserHistory)
@@ -88,6 +90,24 @@ func (s *Server) agentGetCase(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, item)
+}
+
+func (s *Server) agentListCases(c *gin.Context) {
+	// List open cases, optionally filtered by source_ref prefix.
+	q := s.DB.Model(&model.AdminCase{}).Order("created_at DESC")
+	if sourceRef := c.Query("source_ref"); sourceRef != "" {
+		q = q.Where("source_ref = ?", sourceRef)
+	}
+	if status := c.Query("status"); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	limit := 50
+	if l, err := strconv.Atoi(c.Query("limit")); err == nil && l > 0 && l <= 200 {
+		limit = l
+	}
+	var cases []model.AdminCase
+	q.Limit(limit).Find(&cases)
+	c.JSON(http.StatusOK, gin.H{"cases": cases})
 }
 
 func (s *Server) agentGetCaseContext(c *gin.Context) {
