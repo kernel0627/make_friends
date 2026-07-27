@@ -56,6 +56,9 @@ func OpenSQLite() (*gorm.DB, error) {
 		&model.RecommendationModel{},
 		&model.RefreshToken{},
 		&model.RevokedAccessToken{},
+		&model.DomainEvent{},
+		&model.AgentRun{},
+		&model.AgentStep{},
 	); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
