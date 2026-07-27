@@ -1,0 +1,229 @@
+{
+  "cases": [
+    {
+      "id": "gc_appeal_01",
+      "case_type": "moderation_appeal",
+      "difficulty": "easy",
+      "description": "合理申诉：活动被误判为违规，内容实际正常",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ma01",
+          "caseType": "moderation_appeal",
+          "postId": "post_ma01",
+          "targetUserId": "user_appealer1",
+          "reporterUserId": "user_appealer1",
+          "status": "open",
+          "summary": "用户申诉活动被误判下架",
+          "description": "用户发布的烹饪活动被自动审核标记为违规，用户认为是误判",
+          "createdAt": 1721000000000
+        },
+        "post": {
+          "id": "post_ma01",
+          "authorId": "user_appealer1",
+          "title": "一起学做川菜",
+          "description": "在我家厨房一起做麻婆豆腐和水煮鱼，食材我准备，大家AA制分摊材料费约30元",
+          "category": "美食",
+          "status": "active",
+          "moderationStatus": "rejected",
+          "currentCount": 1,
+          "maxCount": 4,
+          "createdAt": 1720980000000
+        },
+        "messages": [],
+        "participants": [],
+        "moderations": [
+          {"id": "mod_1", "postId": "post_ma01", "status": "rejected", "reason": "疑似商业收费活动", "createdAt": 1720985000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_ma01", "actorId": "user_appealer1", "createdAt": 1720980000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_appeal_02",
+      "case_type": "moderation_appeal",
+      "difficulty": "easy",
+      "description": "无理申诉：明显违规内容申诉解封",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ma02",
+          "caseType": "moderation_appeal",
+          "postId": "post_ma02",
+          "targetUserId": "user_spammer2",
+          "reporterUserId": "user_spammer2",
+          "status": "open",
+          "summary": "用户申诉活动下架处罚",
+          "description": "用户称自己的活动是正常社交活动",
+          "createdAt": 1721100000000
+        },
+        "post": {
+          "id": "post_ma02",
+          "authorId": "user_spammer2",
+          "title": "免费领取iPhone活动",
+          "description": "转发此活动到3个群即可获得iPhone抽奖资格！100%中奖！点击链接 bit.ly/scam123",
+          "category": "其他",
+          "status": "active",
+          "moderationStatus": "rejected",
+          "currentCount": 1,
+          "maxCount": 999,
+          "createdAt": 1721080000000
+        },
+        "messages": [],
+        "participants": [],
+        "moderations": [
+          {"id": "mod_2", "postId": "post_ma02", "status": "rejected", "reason": "垃圾信息/诈骗", "createdAt": 1721085000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_ma02", "actorId": "user_spammer2", "createdAt": 1721080000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_appeal_03",
+      "case_type": "moderation_appeal",
+      "difficulty": "medium",
+      "description": "边界申诉：活动涉及轻微收费但非商业性质",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ma03",
+          "caseType": "moderation_appeal",
+          "postId": "post_ma03",
+          "targetUserId": "user_yoga",
+          "reporterUserId": "user_yoga",
+          "status": "open",
+          "summary": "瑜伽活动因涉及收费被下架，用户申诉",
+          "description": "用户是瑜伽爱好者组织免费教学，收取的是场地分摊费",
+          "createdAt": 1721200000000
+        },
+        "post": {
+          "id": "post_ma03",
+          "authorId": "user_yoga",
+          "title": "周末公园瑜伽",
+          "description": "我是瑜伽爱好者（非教练），周末在公园带大家做基础瑜伽，场地免费，自带瑜伽垫。如果想用我的备用垫可以给10块钱清洗费",
+          "category": "运动",
+          "status": "active",
+          "moderationStatus": "rejected",
+          "currentCount": 3,
+          "maxCount": 10,
+          "createdAt": 1721180000000
+        },
+        "messages": [],
+        "participants": [
+          {"postId": "post_ma03", "userId": "user_yp1", "status": "active", "joinedAt": 1721185000000},
+          {"postId": "post_ma03", "userId": "user_yp2", "status": "active", "joinedAt": 1721186000000}
+        ],
+        "moderations": [
+          {"id": "mod_3", "postId": "post_ma03", "status": "rejected", "reason": "商业收费活动", "createdAt": 1721182000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_ma03", "actorId": "user_yoga", "createdAt": 1721180000000}
+        ],
+        "user_history": {
+          "posts": [
+            {"id": "post_yoga_old1", "title": "晨间瑜伽", "category": "运动", "status": "closed", "moderationStatus": "approved"},
+            {"id": "post_yoga_old2", "title": "瑜伽初学者入门", "category": "运动", "status": "closed", "moderationStatus": "approved"}
+          ],
+          "cases": []
+        }
+      }
+    },
+    {
+      "id": "gc_appeal_04",
+      "case_type": "moderation_appeal",
+      "difficulty": "hard",
+      "description": "复杂申诉：活动本身合规但用户有违规前科",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "user_history", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ma04",
+          "caseType": "moderation_appeal",
+          "postId": "post_ma04",
+          "targetUserId": "user_reformed",
+          "reporterUserId": "user_reformed",
+          "status": "open",
+          "summary": "有前科用户的新活动被自动下架，用户申诉",
+          "description": "用户过去有违规记录但本次活动内容完全正常",
+          "createdAt": 1721300000000
+        },
+        "post": {
+          "id": "post_ma04",
+          "authorId": "user_reformed",
+          "title": "图书馆自习互助组",
+          "description": "天河图书馆三楼自习室，一起自习互相监督，适合考研考公的朋友",
+          "category": "学习",
+          "status": "active",
+          "moderationStatus": "rejected",
+          "currentCount": 1,
+          "maxCount": 5,
+          "createdAt": 1721280000000
+        },
+        "messages": [],
+        "participants": [],
+        "moderations": [
+          {"id": "mod_4", "postId": "post_ma04", "status": "rejected", "reason": "用户信誉过低，活动自动进入审核", "createdAt": 1721282000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_ma04", "actorId": "user_reformed", "createdAt": 1721280000000}
+        ],
+        "user_history": {
+          "posts": [
+            {"id": "post_ref_old", "title": "低价出二手书", "category": "其他", "status": "closed", "moderationStatus": "rejected"}
+          ],
+          "cases": [
+            {"id": "case_ref_old", "caseType": "content_report", "status": "resolved", "resolution": "reject"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "gc_appeal_05",
+      "case_type": "moderation_appeal",
+      "difficulty": "medium",
+      "description": "多次修改后申诉：活动被下架后修改内容重新申诉",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ma05",
+          "caseType": "moderation_appeal",
+          "postId": "post_ma05",
+          "targetUserId": "user_editor",
+          "reporterUserId": "user_editor",
+          "status": "open",
+          "summary": "用户修改活动后再次申诉",
+          "description": "活动最初因描述过于简短被拒，用户补充了详细描述后申诉",
+          "createdAt": 1721400000000
+        },
+        "post": {
+          "id": "post_ma05",
+          "authorId": "user_editor",
+          "title": "徒步白云山",
+          "description": "路线：南门入口→摩星岭→山顶广场→北门下山，全程约3小时，适合初级徒步者。请穿运动鞋带足饮用水。集合时间8:30南门停车场。",
+          "category": "户外运动",
+          "status": "active",
+          "moderationStatus": "rejected",
+          "currentCount": 1,
+          "maxCount": 8,
+          "createdAt": 1721350000000
+        },
+        "messages": [],
+        "participants": [],
+        "moderations": [
+          {"id": "mod_5a", "postId": "post_ma05", "status": "rejected", "reason": "活动描述过于简短，信息不足", "createdAt": 1721355000000},
+          {"id": "mod_5b", "postId": "post_ma05", "status": "pending", "reason": "", "createdAt": 1721390000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_ma05", "actorId": "user_editor", "createdAt": 1721350000000},
+          {"eventType": "post.updated", "aggregateType": "post", "aggregateId": "post_ma05", "actorId": "user_editor", "createdAt": 1721390000000}
+        ]
+      }
+    }
+  ]
+}

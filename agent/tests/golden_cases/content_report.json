@@ -1,0 +1,241 @@
+{
+  "cases": [
+    {
+      "id": "gc_content_01",
+      "case_type": "content_report",
+      "difficulty": "easy",
+      "description": "明确违规：活动描述包含广告推销内容",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "chat_messages"],
+      "case_input": {
+        "case": {
+          "id": "case_test_cr01",
+          "caseType": "content_report",
+          "postId": "post_cr01",
+          "targetUserId": "user_spammer",
+          "reporterUserId": "user_reporter1",
+          "status": "open",
+          "summary": "活动描述包含微信号和产品推销链接",
+          "description": "举报人反映该活动标题为'周末爬山'但描述中夹带了大量推销内容",
+          "createdAt": 1720000000000
+        },
+        "post": {
+          "id": "post_cr01",
+          "authorId": "user_spammer",
+          "title": "周末爬山活动",
+          "description": "一起来爬白云山吧！添加微信wxid_abc123购买我们的户外装备，全场8折，限时优惠！更多优惠请访问taobao.com/shop/xyz",
+          "category": "户外运动",
+          "status": "active",
+          "currentCount": 1,
+          "maxCount": 10,
+          "createdAt": 1719990000000
+        },
+        "messages": [],
+        "participants": [],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_cr01", "actorId": "user_spammer", "createdAt": 1719990000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_content_02",
+      "case_type": "content_report",
+      "difficulty": "easy",
+      "description": "误报：正常活动被错误举报",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_cr02",
+          "caseType": "content_report",
+          "postId": "post_cr02",
+          "targetUserId": "user_normal1",
+          "reporterUserId": "user_reporter2",
+          "status": "open",
+          "summary": "举报活动内容不当",
+          "description": "举报人称该活动有不良暗示",
+          "createdAt": 1720100000000
+        },
+        "post": {
+          "id": "post_cr02",
+          "authorId": "user_normal1",
+          "title": "周五晚一起打羽毛球",
+          "description": "天河体育中心羽毛球馆，自带球拍，我会带球。初学者也欢迎！",
+          "category": "运动",
+          "status": "active",
+          "currentCount": 3,
+          "maxCount": 4,
+          "createdAt": 1720050000000
+        },
+        "messages": [
+          {"id": "msg_1", "postId": "post_cr02", "senderId": "user_normal1", "content": "大家记得穿运动鞋", "createdAt": 1720060000000},
+          {"id": "msg_2", "postId": "post_cr02", "senderId": "user_p1", "content": "好的，我带水", "createdAt": 1720060500000}
+        ],
+        "participants": [
+          {"postId": "post_cr02", "userId": "user_p1", "status": "active", "joinedAt": 1720055000000},
+          {"postId": "post_cr02", "userId": "user_p2", "status": "active", "joinedAt": 1720056000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_cr02", "actorId": "user_normal1", "createdAt": 1720050000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_cr02", "actorId": "user_p1", "createdAt": 1720055000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_cr02", "actorId": "user_p2", "createdAt": 1720056000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_content_03",
+      "case_type": "content_report",
+      "difficulty": "medium",
+      "description": "边界情况：活动描述含轻微引导加好友但非商业目的",
+      "expected_verdict": "inconclusive",
+      "expected_evidence_types": ["case_context", "chat_messages", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_cr03",
+          "caseType": "content_report",
+          "postId": "post_cr03",
+          "targetUserId": "user_borderline",
+          "reporterUserId": "user_reporter3",
+          "status": "open",
+          "summary": "活动中引导添加私人联系方式",
+          "description": "描述中提到可以加微信方便联系，不确定是否违规",
+          "createdAt": 1720200000000
+        },
+        "post": {
+          "id": "post_cr03",
+          "authorId": "user_borderline",
+          "title": "周末桌游局",
+          "description": "在我家客厅玩桌游，加我微信拉群方便临时通知时间变动。卡坦岛、三国杀都有。",
+          "category": "桌游",
+          "status": "active",
+          "currentCount": 2,
+          "maxCount": 6,
+          "createdAt": 1720180000000
+        },
+        "messages": [
+          {"id": "msg_3", "postId": "post_cr03", "senderId": "user_borderline", "content": "有兴趣的加我微信哈", "createdAt": 1720185000000}
+        ],
+        "participants": [
+          {"postId": "post_cr03", "userId": "user_p3", "status": "active", "joinedAt": 1720182000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_cr03", "actorId": "user_borderline", "createdAt": 1720180000000}
+        ],
+        "user_history": {
+          "posts": [
+            {"id": "post_old1", "title": "上周桌游回顾", "category": "桌游", "status": "closed"},
+            {"id": "post_old2", "title": "卡坦岛新手局", "category": "桌游", "status": "closed"}
+          ],
+          "cases": []
+        }
+      }
+    },
+    {
+      "id": "gc_content_04",
+      "case_type": "content_report",
+      "difficulty": "hard",
+      "description": "隐蔽违规：表面正常但聊天记录中暴露传销招募意图",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "chat_messages", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_cr04",
+          "caseType": "content_report",
+          "postId": "post_cr04",
+          "targetUserId": "user_mlm",
+          "reporterUserId": "user_reporter4",
+          "status": "open",
+          "summary": "疑似利用活动进行传销招募",
+          "description": "参与者加入后在群聊中被引导参加所谓的'创业分享会'",
+          "createdAt": 1720300000000
+        },
+        "post": {
+          "id": "post_cr04",
+          "authorId": "user_mlm",
+          "title": "年轻人创业交流下午茶",
+          "description": "一起聊聊副业和职业发展，分享经验，轻松氛围。咖啡厅包间，AA制。",
+          "category": "社交",
+          "status": "active",
+          "currentCount": 5,
+          "maxCount": 8,
+          "createdAt": 1720280000000
+        },
+        "messages": [
+          {"id": "msg_4", "postId": "post_cr04", "senderId": "user_mlm", "content": "欢迎大家！", "createdAt": 1720285000000},
+          {"id": "msg_5", "postId": "post_cr04", "senderId": "user_mlm", "content": "到时候会有一位大佬分享他的管道收入模式", "createdAt": 1720286000000},
+          {"id": "msg_6", "postId": "post_cr04", "senderId": "user_p4", "content": "管道收入是什么？", "createdAt": 1720286500000},
+          {"id": "msg_7", "postId": "post_cr04", "senderId": "user_mlm", "content": "就是建立团队，每个人拉3个人，收入指数增长", "createdAt": 1720287000000},
+          {"id": "msg_8", "postId": "post_cr04", "senderId": "user_reporter4", "content": "这不就是传销吗", "createdAt": 1720287500000}
+        ],
+        "participants": [
+          {"postId": "post_cr04", "userId": "user_p4", "status": "active", "joinedAt": 1720282000000},
+          {"postId": "post_cr04", "userId": "user_p5", "status": "active", "joinedAt": 1720283000000},
+          {"postId": "post_cr04", "userId": "user_reporter4", "status": "active", "joinedAt": 1720284000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_cr04", "actorId": "user_mlm", "createdAt": 1720280000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_cr04", "actorId": "user_p4", "createdAt": 1720282000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_cr04", "actorId": "user_p5", "createdAt": 1720283000000}
+        ],
+        "user_history": {
+          "posts": [
+            {"id": "post_mlm_old1", "title": "财务自由交流会", "category": "社交", "status": "closed"},
+            {"id": "post_mlm_old2", "title": "副业分享沙龙", "category": "社交", "status": "closed"},
+            {"id": "post_mlm_old3", "title": "被动收入研讨", "category": "社交", "status": "closed"}
+          ],
+          "cases": [
+            {"id": "case_old1", "caseType": "content_report", "status": "resolved", "resolution": "reject"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "gc_content_05",
+      "case_type": "content_report",
+      "difficulty": "medium",
+      "description": "重复举报：同一用户频繁恶意举报他人",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_cr05",
+          "caseType": "content_report",
+          "postId": "post_cr05",
+          "targetUserId": "user_normal2",
+          "reporterUserId": "user_troll",
+          "status": "open",
+          "summary": "活动内容低俗",
+          "description": "举报人称活动标题和描述低俗不堪",
+          "createdAt": 1720400000000
+        },
+        "post": {
+          "id": "post_cr05",
+          "authorId": "user_normal2",
+          "title": "一起去看电影《消失的她》",
+          "description": "万达影院IMAX厅，晚上7点场，看完可以一起吃个饭聊聊剧情",
+          "category": "观影",
+          "status": "active",
+          "currentCount": 2,
+          "maxCount": 4,
+          "createdAt": 1720380000000
+        },
+        "messages": [],
+        "participants": [
+          {"postId": "post_cr05", "userId": "user_p6", "status": "active", "joinedAt": 1720385000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_cr05", "actorId": "user_normal2", "createdAt": 1720380000000}
+        ],
+        "reporter_history": {
+          "cases_reported": [
+            {"id": "case_r1", "status": "resolved", "resolution": "dismiss"},
+            {"id": "case_r2", "status": "resolved", "resolution": "dismiss"},
+            {"id": "case_r3", "status": "resolved", "resolution": "dismiss"},
+            {"id": "case_r4", "status": "resolved", "resolution": "dismiss"},
+            {"id": "case_r5", "status": "resolved", "resolution": "dismiss"}
+          ]
+        }
+      }
+    }
+  ]
+}

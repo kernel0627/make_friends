@@ -1,0 +1,248 @@
+{
+  "cases": [
+    {
+      "id": "gc_settle_01",
+      "case_type": "settlement_dispute",
+      "difficulty": "easy",
+      "description": "明确爽约：参与者确认参加后未到场，有聊天记录证明",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "chat_messages", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_sd01",
+          "caseType": "settlement_dispute",
+          "postId": "post_sd01",
+          "targetUserId": "user_noshow",
+          "reporterUserId": "user_author1",
+          "status": "open",
+          "summary": "参与者确认参加但未出席活动",
+          "description": "组织者反映该参与者活动前一天还说'明天见'，但当天没有出现也没有任何通知",
+          "createdAt": 1720500000000
+        },
+        "post": {
+          "id": "post_sd01",
+          "authorId": "user_author1",
+          "title": "周六下午篮球3v3",
+          "description": "天河体育中心室外篮球场，2点开始，需要6人凑齐",
+          "category": "运动",
+          "status": "closed",
+          "currentCount": 6,
+          "maxCount": 6,
+          "createdAt": 1720400000000
+        },
+        "messages": [
+          {"id": "msg_sd1", "postId": "post_sd01", "senderId": "user_author1", "content": "大家明天准时到哈", "createdAt": 1720440000000},
+          {"id": "msg_sd2", "postId": "post_sd01", "senderId": "user_noshow", "content": "没问题，明天见！", "createdAt": 1720440500000},
+          {"id": "msg_sd3", "postId": "post_sd01", "senderId": "user_author1", "content": "大家都到了，就差@user_noshow了", "createdAt": 1720490000000},
+          {"id": "msg_sd4", "postId": "post_sd01", "senderId": "user_author1", "content": "等了半小时还没来，打电话也不接", "createdAt": 1720492000000}
+        ],
+        "participants": [
+          {"postId": "post_sd01", "userId": "user_noshow", "status": "active", "joinedAt": 1720410000000},
+          {"postId": "post_sd01", "userId": "user_p7", "status": "active", "joinedAt": 1720411000000},
+          {"postId": "post_sd01", "userId": "user_p8", "status": "active", "joinedAt": 1720412000000}
+        ],
+        "settlements": [
+          {"postId": "post_sd01", "userId": "user_noshow", "participantDecision": "", "finalStatus": "", "settledAt": 0}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_sd01", "actorId": "user_author1", "createdAt": 1720400000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_sd01", "actorId": "user_noshow", "createdAt": 1720410000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_sd01", "actorId": "user_author1", "createdAt": 1720495000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_settle_02",
+      "case_type": "settlement_dispute",
+      "difficulty": "medium",
+      "description": "有争议的爽约：参与者声称已提前通知但组织者否认",
+      "expected_verdict": "inconclusive",
+      "expected_evidence_types": ["case_context", "chat_messages", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_sd02",
+          "caseType": "settlement_dispute",
+          "postId": "post_sd02",
+          "targetUserId": "user_disputed",
+          "reporterUserId": "user_author2",
+          "status": "open",
+          "summary": "参与者声称提前通知了无法参加，但组织者没有收到通知",
+          "description": "双方说法矛盾，参与者说活动前2小时发了消息，组织者说没有看到",
+          "createdAt": 1720600000000
+        },
+        "post": {
+          "id": "post_sd02",
+          "authorId": "user_author2",
+          "title": "周日剧本杀",
+          "description": "剧本杀馆已预定包间，人均88元，需要凑满6人",
+          "category": "桌游",
+          "status": "closed",
+          "currentCount": 6,
+          "maxCount": 6,
+          "createdAt": 1720550000000
+        },
+        "messages": [
+          {"id": "msg_sd5", "postId": "post_sd02", "senderId": "user_author2", "content": "明天下午2点，地址发群里了", "createdAt": 1720570000000},
+          {"id": "msg_sd6", "postId": "post_sd02", "senderId": "user_disputed", "content": "收到", "createdAt": 1720570500000}
+        ],
+        "participants": [
+          {"postId": "post_sd02", "userId": "user_disputed", "status": "active", "joinedAt": 1720555000000}
+        ],
+        "settlements": [
+          {"postId": "post_sd02", "userId": "user_disputed", "participantDecision": "completed", "finalStatus": "", "participantNote": "我活动前2小时在微信群里说了临时有事来不了"}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_sd02", "actorId": "user_author2", "createdAt": 1720550000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_sd02", "actorId": "user_disputed", "createdAt": 1720555000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_sd02", "actorId": "user_author2", "createdAt": 1720598000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_settle_03",
+      "case_type": "settlement_dispute",
+      "difficulty": "easy",
+      "description": "正常取消：参与者提前24小时取消，组织者恶意标记爽约",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_sd03",
+          "caseType": "settlement_dispute",
+          "postId": "post_sd03",
+          "targetUserId": "user_early_cancel",
+          "reporterUserId": "user_author3",
+          "status": "open",
+          "summary": "组织者标记参与者爽约",
+          "description": "组织者称参与者爽约，但系统记录显示参与者提前一天已取消",
+          "createdAt": 1720700000000
+        },
+        "post": {
+          "id": "post_sd03",
+          "authorId": "user_author3",
+          "title": "摄影外拍活动",
+          "description": "白云山日落摄影，自带相机",
+          "category": "摄影",
+          "status": "closed",
+          "currentCount": 3,
+          "maxCount": 5,
+          "createdAt": 1720600000000
+        },
+        "messages": [
+          {"id": "msg_sd7", "postId": "post_sd03", "senderId": "user_early_cancel", "content": "抱歉明天临时出差去不了了", "createdAt": 1720620000000}
+        ],
+        "participants": [
+          {"postId": "post_sd03", "userId": "user_early_cancel", "status": "cancelled", "joinedAt": 1720610000000, "cancelledAt": 1720620500000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_sd03", "actorId": "user_author3", "createdAt": 1720600000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_sd03", "actorId": "user_early_cancel", "createdAt": 1720610000000},
+          {"eventType": "participant.cancelled", "aggregateType": "post", "aggregateId": "post_sd03", "actorId": "user_early_cancel", "createdAt": 1720620500000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_sd03", "actorId": "user_author3", "createdAt": 1720700000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_settle_04",
+      "case_type": "settlement_dispute",
+      "difficulty": "hard",
+      "description": "组织者自身问题：活动临时更改地点导致参与者无法到达",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context", "chat_messages", "domain_events", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_sd04",
+          "caseType": "settlement_dispute",
+          "postId": "post_sd04",
+          "targetUserId": "user_victim",
+          "reporterUserId": "user_bad_author",
+          "status": "open",
+          "summary": "参与者未出席活动",
+          "description": "组织者标记参与者爽约",
+          "createdAt": 1720800000000
+        },
+        "post": {
+          "id": "post_sd04",
+          "authorId": "user_bad_author",
+          "title": "骑行珠江夜景",
+          "description": "海珠桥出发，骑行到猎德大桥，全程约10公里",
+          "category": "运动",
+          "status": "closed",
+          "currentCount": 4,
+          "maxCount": 6,
+          "createdAt": 1720720000000
+        },
+        "messages": [
+          {"id": "msg_sd8", "postId": "post_sd04", "senderId": "user_bad_author", "content": "通知一下，出发地点改为大学城那边了", "createdAt": 1720790000000},
+          {"id": "msg_sd9", "postId": "post_sd04", "senderId": "user_victim", "content": "啊？活动前1小时才改地点？我已经到海珠桥了", "createdAt": 1720791000000},
+          {"id": "msg_sd10", "postId": "post_sd04", "senderId": "user_victim", "content": "大学城太远了赶不过去", "createdAt": 1720791500000},
+          {"id": "msg_sd11", "postId": "post_sd04", "senderId": "user_bad_author", "content": "那没办法", "createdAt": 1720792000000}
+        ],
+        "participants": [
+          {"postId": "post_sd04", "userId": "user_victim", "status": "active", "joinedAt": 1720730000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_sd04", "actorId": "user_bad_author", "createdAt": 1720720000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_sd04", "actorId": "user_victim", "createdAt": 1720730000000},
+          {"eventType": "post.updated", "aggregateType": "post", "aggregateId": "post_sd04", "actorId": "user_bad_author", "createdAt": 1720790000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_sd04", "actorId": "user_bad_author", "createdAt": 1720795000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_settle_05",
+      "case_type": "settlement_dispute",
+      "difficulty": "hard",
+      "description": "惯犯模式：参与者有多次爽约历史",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_sd05",
+          "caseType": "settlement_dispute",
+          "postId": "post_sd05",
+          "targetUserId": "user_repeat_noshow",
+          "reporterUserId": "user_author5",
+          "status": "open",
+          "summary": "参与者再次爽约",
+          "description": "组织者反映该用户第三次在活动中爽约",
+          "createdAt": 1720900000000
+        },
+        "post": {
+          "id": "post_sd05",
+          "authorId": "user_author5",
+          "title": "读书分享会",
+          "description": "咖啡厅二楼，本期讨论《人类简史》",
+          "category": "学习",
+          "status": "closed",
+          "currentCount": 5,
+          "maxCount": 8,
+          "createdAt": 1720850000000
+        },
+        "messages": [
+          {"id": "msg_sd12", "postId": "post_sd05", "senderId": "user_repeat_noshow", "content": "我报名了", "createdAt": 1720860000000}
+        ],
+        "participants": [
+          {"postId": "post_sd05", "userId": "user_repeat_noshow", "status": "active", "joinedAt": 1720855000000}
+        ],
+        "domain_events": [
+          {"eventType": "post.created", "aggregateType": "post", "aggregateId": "post_sd05", "actorId": "user_author5", "createdAt": 1720850000000},
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_sd05", "actorId": "user_repeat_noshow", "createdAt": 1720855000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_sd05", "actorId": "user_author5", "createdAt": 1720895000000}
+        ],
+        "user_history": {
+          "posts": [],
+          "participations": [
+            {"postId": "post_old_a", "status": "active", "joinedAt": 1719000000000},
+            {"postId": "post_old_b", "status": "active", "joinedAt": 1719500000000},
+            {"postId": "post_old_c", "status": "active", "joinedAt": 1720000000000}
+          ],
+          "cases": [
+            {"id": "case_hist1", "caseType": "settlement_dispute", "status": "resolved", "resolution": "no_show"},
+            {"id": "case_hist2", "caseType": "settlement_dispute", "status": "resolved", "resolution": "no_show"}
+          ]
+        }
+      }
+    }
+  ]
+}

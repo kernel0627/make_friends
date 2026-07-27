@@ -1,0 +1,261 @@
+{
+  "cases": [
+    {
+      "id": "gc_credit_01",
+      "case_type": "credit_appeal",
+      "difficulty": "easy",
+      "description": "合理申诉：系统误扣信用分，用户实际按时参加了活动",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events", "chat_messages"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ca01",
+          "caseType": "credit_appeal",
+          "postId": "post_ca01",
+          "targetUserId": "user_wrongly_penalized",
+          "reporterUserId": "user_wrongly_penalized",
+          "status": "open",
+          "summary": "用户申诉信用分被误扣",
+          "description": "用户称自己参加了活动但被标记为爽约，要求恢复信用分",
+          "createdAt": 1721500000000
+        },
+        "post": {
+          "id": "post_ca01",
+          "authorId": "user_ca_author1",
+          "title": "羽毛球双打",
+          "description": "番禺区体育中心羽毛球馆，打2小时",
+          "category": "运动",
+          "status": "closed",
+          "currentCount": 4,
+          "maxCount": 4,
+          "createdAt": 1721400000000
+        },
+        "messages": [
+          {"id": "msg_ca1", "postId": "post_ca01", "senderId": "user_wrongly_penalized", "content": "到了到了", "createdAt": 1721450000000},
+          {"id": "msg_ca2", "postId": "post_ca01", "senderId": "user_ca_author1", "content": "好的都到齐了开始打", "createdAt": 1721450500000},
+          {"id": "msg_ca3", "postId": "post_ca01", "senderId": "user_ca_p1", "content": "今天打得开心！", "createdAt": 1721460000000},
+          {"id": "msg_ca4", "postId": "post_ca01", "senderId": "user_wrongly_penalized", "content": "下次再约！", "createdAt": 1721460500000}
+        ],
+        "participants": [
+          {"postId": "post_ca01", "userId": "user_wrongly_penalized", "status": "active", "joinedAt": 1721410000000}
+        ],
+        "settlements": [
+          {"postId": "post_ca01", "userId": "user_wrongly_penalized", "finalStatus": "no_show", "settledAt": 1721470000000}
+        ],
+        "credit_ledgers": [
+          {"userId": "user_wrongly_penalized", "delta": -15, "reason": "no_show", "postId": "post_ca01", "createdAt": 1721470000000}
+        ],
+        "domain_events": [
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_ca01", "actorId": "user_wrongly_penalized", "createdAt": 1721410000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_ca01", "actorId": "user_ca_author1", "createdAt": 1721465000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_credit_02",
+      "case_type": "credit_appeal",
+      "difficulty": "easy",
+      "description": "无理申诉：确实爽约但不认账",
+      "expected_verdict": "unsupported",
+      "expected_evidence_types": ["case_context", "domain_events", "chat_messages"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ca02",
+          "caseType": "credit_appeal",
+          "postId": "post_ca02",
+          "targetUserId": "user_denier",
+          "reporterUserId": "user_denier",
+          "status": "open",
+          "summary": "用户申诉爽约扣分不合理",
+          "description": "用户称自己有急事没去但不应该扣分",
+          "createdAt": 1721600000000
+        },
+        "post": {
+          "id": "post_ca02",
+          "authorId": "user_ca_author2",
+          "title": "KTV聚会",
+          "description": "万达KTV大包间，已预订8-10点",
+          "category": "社交",
+          "status": "closed",
+          "currentCount": 6,
+          "maxCount": 8,
+          "createdAt": 1721550000000
+        },
+        "messages": [
+          {"id": "msg_ca5", "postId": "post_ca02", "senderId": "user_ca_author2", "content": "7:45在门口集合", "createdAt": 1721570000000},
+          {"id": "msg_ca6", "postId": "post_ca02", "senderId": "user_denier", "content": "好的没问题", "createdAt": 1721570500000},
+          {"id": "msg_ca7", "postId": "post_ca02", "senderId": "user_ca_author2", "content": "@user_denier 你人呢？都开始了", "createdAt": 1721585000000}
+        ],
+        "participants": [
+          {"postId": "post_ca02", "userId": "user_denier", "status": "active", "joinedAt": 1721555000000}
+        ],
+        "settlements": [
+          {"postId": "post_ca02", "userId": "user_denier", "finalStatus": "no_show", "settledAt": 1721590000000}
+        ],
+        "credit_ledgers": [
+          {"userId": "user_denier", "delta": -15, "reason": "no_show", "postId": "post_ca02", "createdAt": 1721590000000}
+        ],
+        "domain_events": [
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_ca02", "actorId": "user_denier", "createdAt": 1721555000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_ca02", "actorId": "user_ca_author2", "createdAt": 1721588000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_credit_03",
+      "case_type": "credit_appeal",
+      "difficulty": "medium",
+      "description": "部分合理：组织者取消活动但参与者被扣分",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ca03",
+          "caseType": "credit_appeal",
+          "postId": "post_ca03",
+          "targetUserId": "user_innocent",
+          "reporterUserId": "user_innocent",
+          "status": "open",
+          "summary": "活动被组织者取消但参与者被扣分",
+          "description": "组织者单方面取消活动后系统自动扣了参与者的信用分",
+          "createdAt": 1721700000000
+        },
+        "post": {
+          "id": "post_ca03",
+          "authorId": "user_ca_author3",
+          "title": "露营烧烤",
+          "description": "南沙湿地公园露营区，自带帐篷",
+          "category": "户外",
+          "status": "closed",
+          "currentCount": 3,
+          "maxCount": 6,
+          "cancelledAt": 1721680000000,
+          "createdAt": 1721600000000
+        },
+        "messages": [
+          {"id": "msg_ca8", "postId": "post_ca03", "senderId": "user_ca_author3", "content": "不好意思大家，天气预报说明天有暴雨，活动取消", "createdAt": 1721680000000}
+        ],
+        "participants": [
+          {"postId": "post_ca03", "userId": "user_innocent", "status": "active", "joinedAt": 1721620000000}
+        ],
+        "credit_ledgers": [
+          {"userId": "user_innocent", "delta": -10, "reason": "activity_cancelled", "postId": "post_ca03", "createdAt": 1721685000000}
+        ],
+        "domain_events": [
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_ca03", "actorId": "user_innocent", "createdAt": 1721620000000},
+          {"eventType": "post.cancelled_all", "aggregateType": "post", "aggregateId": "post_ca03", "actorId": "user_ca_author3", "createdAt": 1721680000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_credit_04",
+      "case_type": "credit_appeal",
+      "difficulty": "hard",
+      "description": "系统bug：活动正常完成但结算异常导致扣分",
+      "expected_verdict": "supported",
+      "expected_evidence_types": ["case_context", "domain_events", "chat_messages", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ca04",
+          "caseType": "credit_appeal",
+          "postId": "post_ca04",
+          "targetUserId": "user_bug_victim",
+          "reporterUserId": "user_bug_victim",
+          "status": "open",
+          "summary": "用户反映信用分异常扣减",
+          "description": "用户称活动正常结束所有人都确认参加了但自己被扣了分",
+          "createdAt": 1721800000000
+        },
+        "post": {
+          "id": "post_ca04",
+          "authorId": "user_ca_author4",
+          "title": "密室逃脱组队",
+          "description": "天河城4楼密室逃脱，找6人组队，人均98",
+          "category": "社交",
+          "status": "closed",
+          "currentCount": 6,
+          "maxCount": 6,
+          "createdAt": 1721720000000
+        },
+        "messages": [
+          {"id": "msg_ca9", "postId": "post_ca04", "senderId": "user_ca_author4", "content": "大家都到齐了，进场！", "createdAt": 1721780000000},
+          {"id": "msg_ca10", "postId": "post_ca04", "senderId": "user_bug_victim", "content": "太刺激了！下次还来", "createdAt": 1721790000000},
+          {"id": "msg_ca11", "postId": "post_ca04", "senderId": "user_ca_author4", "content": "大家结算完了吗？我这边确认通过了所有人", "createdAt": 1721792000000}
+        ],
+        "participants": [
+          {"postId": "post_ca04", "userId": "user_bug_victim", "status": "active", "joinedAt": 1721730000000}
+        ],
+        "settlements": [
+          {"postId": "post_ca04", "userId": "user_bug_victim", "participantDecision": "completed", "finalStatus": "no_show", "participantNote": "我参加了呀", "settledAt": 1721795000000}
+        ],
+        "credit_ledgers": [
+          {"userId": "user_bug_victim", "delta": -15, "reason": "no_show", "postId": "post_ca04", "createdAt": 1721795000000}
+        ],
+        "domain_events": [
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_ca04", "actorId": "user_bug_victim", "createdAt": 1721730000000},
+          {"eventType": "post.closed", "aggregateType": "post", "aggregateId": "post_ca04", "actorId": "user_ca_author4", "createdAt": 1721785000000}
+        ]
+      }
+    },
+    {
+      "id": "gc_credit_05",
+      "case_type": "credit_appeal",
+      "difficulty": "medium",
+      "description": "多次扣分累积：用户对一次性大额扣分提出异议",
+      "expected_verdict": "inconclusive",
+      "expected_evidence_types": ["case_context", "user_history"],
+      "case_input": {
+        "case": {
+          "id": "case_test_ca05",
+          "caseType": "credit_appeal",
+          "postId": "post_ca05",
+          "targetUserId": "user_low_credit",
+          "reporterUserId": "user_low_credit",
+          "status": "open",
+          "summary": "用户申诉信用分过低影响正常使用",
+          "description": "用户信用分降到40分被限制发帖，申诉称之前的扣分有不合理之处",
+          "createdAt": 1721900000000
+        },
+        "post": {
+          "id": "post_ca05",
+          "authorId": "user_ca_author5",
+          "title": "最近一次被扣分活动",
+          "description": "游泳活动",
+          "category": "运动",
+          "status": "closed",
+          "currentCount": 4,
+          "maxCount": 4,
+          "createdAt": 1721850000000
+        },
+        "messages": [],
+        "participants": [
+          {"postId": "post_ca05", "userId": "user_low_credit", "status": "active", "joinedAt": 1721855000000}
+        ],
+        "settlements": [
+          {"postId": "post_ca05", "userId": "user_low_credit", "finalStatus": "no_show", "settledAt": 1721880000000}
+        ],
+        "credit_ledgers": [
+          {"userId": "user_low_credit", "delta": -15, "reason": "no_show", "postId": "post_ca05", "createdAt": 1721880000000},
+          {"userId": "user_low_credit", "delta": -15, "reason": "no_show", "postId": "post_old_x", "createdAt": 1721200000000},
+          {"userId": "user_low_credit", "delta": -15, "reason": "no_show", "postId": "post_old_y", "createdAt": 1720800000000},
+          {"userId": "user_low_credit", "delta": -10, "reason": "late_cancel", "postId": "post_old_z", "createdAt": 1720500000000}
+        ],
+        "domain_events": [
+          {"eventType": "participant.joined", "aggregateType": "post", "aggregateId": "post_ca05", "actorId": "user_low_credit", "createdAt": 1721855000000}
+        ],
+        "user_history": {
+          "participations": [
+            {"postId": "post_ca05", "status": "active"},
+            {"postId": "post_old_x", "status": "active"},
+            {"postId": "post_old_y", "status": "active"},
+            {"postId": "post_old_z", "status": "cancelled", "cancelledAt": 1720495000000}
+          ],
+          "cases": [
+            {"id": "case_ch1", "caseType": "settlement_dispute", "status": "resolved", "resolution": "no_show"},
+            {"id": "case_ch2", "caseType": "settlement_dispute", "status": "resolved", "resolution": "no_show"}
+          ]
+        }
+      }
+    }
+  ]
+}
