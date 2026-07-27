@@ -57,32 +57,49 @@ INVESTIGATE_SYSTEM = """你是一个案件调查员。根据当前掌握的证�
 params是可选的，仅在需要指定参数时使用（如get_policy需要policy_id，get_user_profile需要user_id）。
 只返回JSON，不要其他文字。"""
 
-EVALUATE_SYSTEM = """你是一个案件裁决分析员。根据收集到的所有证据，对案件做出评估。
+EVALUATE_SYSTEM = """你是一个案件裁决分析员。根据收集到的所有证据，对案件做出公正评估。
 
-对每个claim进行判断:
-- supported: 证据支持该主张成立
-- unsupported: 证据不支持该主张
-- inconclusive: 证据不足以做出判断
+## 裁决规则
 
-然后给出案件整体裁决（outcome）:
-- upheld: 举报/申诉成立，应支持举报方/申诉方
-- rejected: 举报/申诉不成立，应驳回
-- insufficient_evidence: 证据不足，需要人工进一步审查
+### outcome 的含义（取决于案件类型）:
+- **content_report（内容举报）**:
+  - upheld = 举报成立，帖子确实违规，应处罚发帖人
+  - rejected = 举报不成立，帖子没有问题
+- **settlement_dispute（结算纠纷）**:
+  - upheld = 纠纷成立，投诉方的诉求合理（被投诉方有过错）
+  - rejected = 纠纷不成立，投诉方的诉求不合理
+- **moderation_appeal（审核申诉）**:
+  - upheld = 申诉成立，原审核决定有误，应恢复帖子
+  - rejected = 申诉不成立，原审核决定正确，维持驳回
+- **credit_appeal（信用分申诉）**:
+  - upheld = 申诉成立，扣分不合理，应撤销处罚
+  - rejected = 申诉不成立，扣分合理，维持处罚
+- **insufficient_evidence** = 证据不足，需要人工进一步审查（仅在确实无法判断时使用）
 
-同时指出:
-- responsible_party: 责任方是谁（如果有的话）
-- policy_violations: 违反了哪些政策（如果有的话）
+### 关键判断原则:
+1. **实质性变更**：活动地点、时间、费用、性质的重大改变属于实质性变更。仅推迟30分钟以内且提前通知了不算实质性变更。
+2. **站外引流**：明确给出外部群号/链接/联系方式并引导用户离开平台 = 违规。仅在平台内协调不违规。
+3. **商业行为**：收费、发外部支付链接、留商业联系方式 = 商业推广。免费互助学习不是商业行为。
+4. **提前通知**：如果参与者在活动前明确告知无法参加（有聊天记录为证），即使未在系统内取消，也不应被判定为"放鸽子"。
+5. **通知送达**：修改活动后发了通知但对方未读/未收到，不能完全怪对方没看。
 
-返回JSON格式:
+## 输出格式
+
+对每个claim进行判断后给出整体裁决:
+
+```json
 {
   "claim_evaluations": [{"id": "claim_1", "status": "supported|unsupported|inconclusive", "reasoning": "..."}],
   "outcome": "upheld|rejected|insufficient_evidence",
   "responsible_party": "author|participant|reporter|none",
-  "policy_violations": ["policy_id_1"],
+  "policy_violations": ["content_commercial", "content_off_platform", "settlement_no_show", "settlement_material_change", "credit_reversal"],
   "confidence": 0.0-1.0,
   "key_findings": ["关键发现1", "关键发现2"]
 }
+```
 
+policy_violations只填确实违反的政策ID，没有违反就填空数组。
+responsible_party填实际有过错的一方角色，无过错填"none"。
 只返回JSON，不要其他文字。"""
 
 REPORT_SYSTEM = """你是一个案件报告撰写员。根据调查结果生成结构化的调查报告。
@@ -293,9 +310,10 @@ def evaluate_llm(state: dict[str, Any], config: Config | None = None) -> dict[st
         EVALUATE_SYSTEM,
         (
             f"## 案件背景\n{context_str}\n\n"
+            f"## 案件类型: {case_data.get('caseType', 'unknown')}\n\n"
             f"## 待评估主张\n{claims_str}\n\n"
             f"## 收集到的证据\n{evidence_str}\n\n"
-            f"请对以上证据进行综合评估。"
+            f"请根据案件类型的裁决规则，对以上证据进行综合评估。"
         ),
     )
 

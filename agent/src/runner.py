@@ -54,6 +54,19 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
                 latencyMs=step.get("latencyMs", 0),
             )
 
+        # Write decision to backend
+        verdict = final_state.get("verdict", "insufficient_evidence")
+        reasoning = ""
+        if final_state.get("report"):
+            # Use first 2000 chars of report as reasoning
+            reasoning = final_state["report"][:2000]
+        client.create_decision(
+            case_id,
+            outcome=verdict,
+            reasoning=reasoning,
+            run_id=run_id,
+        )
+
         # Mark completed
         client.update_run(
             run_id,

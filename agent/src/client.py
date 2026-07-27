@@ -114,6 +114,22 @@ class BackendClient:
         r.raise_for_status()
         return r.json()
 
+    def create_decision(self, case_id: str, outcome: str, reasoning: str = "",
+                        evidence_refs: list[str] | None = None,
+                        actions: list[str] | None = None,
+                        run_id: str = "") -> dict[str, Any]:
+        """Record the agent's verdict as a CaseDecision."""
+        payload = {
+            "outcome": outcome,
+            "reasoning": reasoning,
+            "evidenceRefs": evidence_refs or [],
+            "actions": actions or [],
+            "runId": run_id,
+        }
+        r = self._client.post(f"/internal/agent/case/{case_id}/decision", json=payload)
+        r.raise_for_status()
+        return r.json()
+
     # --- Write tools (run tracking) ---
 
     def create_run(self, case_id: str, model: str) -> dict[str, Any]:

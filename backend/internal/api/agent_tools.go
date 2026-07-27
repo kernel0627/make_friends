@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
@@ -74,6 +75,8 @@ func RegisterAgentRoutes(r *gin.Engine, s *Server) {
 		g.POST("/run/:id/step", s.agentCreateStep)
 		// Evidence write (agent can link evidence to case)
 		g.POST("/case/:id/evidence", s.agentAddEvidence)
+		// Decision write (agent records its verdict)
+		g.POST("/case/:id/decision", s.agentCreateDecision)
 	}
 }
 
@@ -374,6 +377,63 @@ func (s *Server) agentAddEvidence(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, evidence)
+}
+
+// --- Decision write (agent records verdict) ---
+
+type createDecisionReq struct {
+	Outcome      string   `json:"outcome" binding:"required"`
+	Reasoning    string   `json:"reasoning"`
+	EvidenceRefs []string `json:"evidenceRefs"`
+	Actions      []string `json:"actions"`
+	RunID        string   `json:"runId"`
+}
+
+func (s *Server) agentCreateDecision(c *gin.Context) {
+	caseID := c.Param("id")
+	var req createDecisionReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	deciderID := "agent"
+	if req.RunID != "" {
+		deciderID = "agent:" + req.RunID
+	}
+
+	evidenceJSON, _ := json.Marshal(req.EvidenceRefs)
+	actionsJSON, _ := json.Marshal(req.Actions)
+
+	now := time.Now().UnixMilli()
+	decision := model.CaseDecision{
+		CaseID:       caseID,
+		DeciderID:    deciderID,
+		DecisionType: "initial",
+		Outcome:      req.Outcome,
+		Reasoning:    req.Reasoning,
+		EvidenceRefs: string(evidenceJSON),
+		Actions:      string(actionsJSON),
+		CreatedAt:    now,
+	}
+	if err := s.DB.Create(&decision).Error; err != nil {
+		serverError(c, err)
+		return
+	}
+
+	// Update case status based on outcome
+	caseUpdates := map[string]any{
+		"status":     "resolved",
+		"decision":   req.Outcome,
+		"resolved_at": now,
+		"updated_at": now,
+	}
+	if req.Reasoning != "" {
+		caseUpdates["decision_reason"] = req.Reasoning
+	}
+	s.DB.Model(&model.AdminCase{}).Where("id = ?", caseID).Updates(caseUpdates)
+
+	c.JSON(http.StatusCreated, decision)
 }
 
 // --- Write endpoints (agent run tracking) ---
