@@ -148,5 +148,19 @@ class BackendClient:
         r.raise_for_status()
         return r.json()
 
+    def execute_action(self, case_id: str, action: str, run_id: str = "",
+                       target_id: str = "", amount: int = 0, reason: str = "") -> dict[str, Any]:
+        """Execute a remediation action (credit_deduct, credit_restore, post_restore, post_takedown)."""
+        payload = {
+            "action": action,
+            "targetId": target_id,
+            "amount": amount,
+            "reason": reason,
+            "runId": run_id,
+        }
+        r = self._client.post(f"/internal/agent/case/{case_id}/execute-action", json=payload)
+        r.raise_for_status()
+        return r.json()
+
     def close(self):
         self._client.close()

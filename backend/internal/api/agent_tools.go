@@ -77,6 +77,8 @@ func RegisterAgentRoutes(r *gin.Engine, s *Server) {
 		g.POST("/case/:id/evidence", s.agentAddEvidence)
 		// Decision write (agent records its verdict)
 		g.POST("/case/:id/decision", s.agentCreateDecision)
+		// Action execution (agent executes remediation)
+		registerAgentActionRoutes(g, s)
 	}
 }
 

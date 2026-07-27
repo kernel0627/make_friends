@@ -13,7 +13,7 @@ func SettlementBoundaryCancelTiming() *Scenario {
 		Difficulty: "hard",
 		Summary:    "Author cancelled activity 23 hours before start; argues chat notice was sent 25 hours before; disputes penalty",
 		Truth: Truth{
-			Outcome:          "upheld", // dispute upheld — penalty is valid, system record counts
+			Outcome:          "rejected", // dispute rejected — author's complaint is invalid, system record confirms <24h cancel
 			ResponsibleParty: "author",
 			PolicyRefs:       []string{"settlement_no_show"},
 			RequiredEvidence: []string{"cancel_timestamp", "chat_notice_timestamp", "system_cancel_record"},

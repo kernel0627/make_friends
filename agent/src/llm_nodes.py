@@ -82,6 +82,7 @@ EVALUATE_SYSTEM = """你是一个案件裁决分析员。根据收集到的所�
 3. **商业行为**：收费、发外部支付链接、留商业联系方式 = 商业推广。免费互助学习不是商业行为。
 4. **提前通知**：如果参与者在活动前明确告知无法参加（有聊天记录为证），即使未在系统内取消，也不应被判定为"放鸽子"。
 5. **通知送达**：修改活动后发了通知但对方未读/未收到，不能完全怪对方没看。
+6. **系统时间戳优先**：判断取消/变更是否满足时间要求时，以系统记录的操作时间为准。聊天里说了不等于系统操作已完成。
 
 ## 输出格式
 
@@ -112,6 +113,15 @@ REPORT_SYSTEM = """你是一个案件报告撰写员。根据调查结果生成�
 5. 整体结论和建议
 
 使用Markdown格式，保持专业、客观、简洁。报告面向管理员审阅。"""
+
+SUMMARIZE_SYSTEM = """你是一个证据摘要分析员。你需要将大量的原始证据压缩为结构化摘要，保留所有对裁决有影响的关键信息。
+
+对每类证据，提取：
+1. 关键事实（时间、人物、行为）
+2. 矛盾点或异常
+3. 与案件主张的相关性
+
+保持客观，不做判断。用简洁的中文输出。"""
 
 
 # --- Helpers ---
@@ -403,3 +413,73 @@ def report_llm(state: dict[str, Any], config: Config | None = None) -> dict[str,
     )
 
     return {"report": report}
+
+
+# --- Evidence Summarization ---
+
+_EVIDENCE_CHAR_THRESHOLD = 8000  # Summarize if total evidence exceeds this
+
+
+def _evidence_total_chars(evidence: list[dict]) -> int:
+    """Calculate total character length of serialized evidence."""
+    total = 0
+    for e in evidence:
+        data = e.get("data", [])
+        total += len(json.dumps(data, ensure_ascii=False))
+    return total
+
+
+def summarize_evidence_llm(state: dict[str, Any], config: Config | None = None) -> dict[str, Any]:
+    """Summarize evidence if it exceeds the token threshold.
+
+    This node is inserted between investigate and evaluate. If evidence is
+    within limits, it passes through unchanged. If it exceeds the threshold,
+    each evidence source is compressed into a key-point summary.
+    """
+    if config is None:
+        config = load_config()
+
+    evidence = state.get("evidence", [])
+    total_chars = _evidence_total_chars(evidence)
+
+    if total_chars <= _EVIDENCE_CHAR_THRESHOLD:
+        # No summarization needed
+        return {}
+
+    logger.info(f"Evidence exceeds threshold ({total_chars} > {_EVIDENCE_CHAR_THRESHOLD}), summarizing...")
+
+    case_data = state.get("case_data", {})
+    claims = state.get("claims", [])
+    claims_str = json.dumps(claims, ensure_ascii=False)
+
+    llm = LLMClient(config)
+
+    # Summarize each evidence source individually to preserve structure
+    summarized = []
+    for e in evidence:
+        etype = e.get("type", "unknown")
+        data = e.get("data", [])
+        raw = json.dumps(data, ensure_ascii=False)
+
+        if len(raw) <= 1000:
+            # Small enough, keep as-is
+            summarized.append(e)
+            continue
+
+        summary_text = llm.chat(
+            SUMMARIZE_SYSTEM,
+            (
+                f"案件类型: {case_data.get('caseType', '')}\n"
+                f"待验证主张: {claims_str}\n\n"
+                f"请摘要以下 {etype} 类型的证据（{len(raw)}字符）:\n\n"
+                f"{raw[:6000]}"  # Cap input to avoid sending too much
+            ),
+        )
+        summarized.append({
+            "type": etype,
+            "data": summary_text,
+            "_summarized": True,
+            "_original_chars": len(raw),
+        })
+
+    return {"evidence": summarized}

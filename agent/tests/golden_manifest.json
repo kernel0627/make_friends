@@ -154,7 +154,7 @@
     "scenario_id": "settlement_boundary_cancel_01",
     "case_type": "settlement_dispute",
     "difficulty": "hard",
-    "expected_outcome": "upheld",
+    "expected_outcome": "rejected",
     "responsible_party": "author",
     "policy_refs": [
       "settlement_no_show"

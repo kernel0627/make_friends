@@ -220,6 +220,7 @@ def build_llm_graph() -> StateGraph:
         extract_claims_llm,
         investigate_llm,
         should_continue_llm,
+        summarize_evidence_llm,
         evaluate_llm,
         report_llm,
     )
@@ -229,6 +230,7 @@ def build_llm_graph() -> StateGraph:
     graph.add_node("load_case", load_case_node)
     graph.add_node("extract_claims", extract_claims_llm)
     graph.add_node("investigate", investigate_llm)
+    graph.add_node("summarize", summarize_evidence_llm)
     graph.add_node("evaluate", evaluate_llm)
     graph.add_node("report", report_llm)
 
@@ -238,8 +240,9 @@ def build_llm_graph() -> StateGraph:
     graph.add_conditional_edges(
         "investigate",
         should_continue_llm,
-        {"continue": "investigate", "done": "evaluate"},
+        {"continue": "investigate", "done": "summarize"},
     )
+    graph.add_edge("summarize", "evaluate")
     graph.add_edge("evaluate", "report")
     graph.add_edge("report", END)
 
