@@ -1,7 +1,7 @@
 """LLM-powered node implementations for the investigation graph.
 
-These replace the skeleton/deterministic nodes with Claude-based reasoning.
-Requires ANTHROPIC_API_KEY to be set.
+Uses OpenAI-compatible API (DeepSeek, OpenAI, vLLM, etc.).
+Requires LLM_API_KEY to be set in .env.
 """
 
 from __future__ import annotations
@@ -11,10 +11,8 @@ import logging
 import time
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
-
 from .config import Config, load_config
+from .llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -86,17 +84,7 @@ REPORT_SYSTEM = """你是一个案件报告撰写员。根据调查结果生成�
 使用Markdown格式，保持专业、客观、简洁。报告面向管理员审阅。"""
 
 
-def _get_llm(config: Config):
-    """Get a configured ChatAnthropic instance."""
-    from langchain_anthropic import ChatAnthropic
-
-    return ChatAnthropic(
-        model=config.llm_model,
-        api_key=config.llm_api_key,
-        max_tokens=config.max_tokens_per_step,
-        temperature=0,
-    )
-
+# --- Helpers ---
 
 def _format_context_for_llm(case_data: dict, full_context: dict) -> str:
     """Format case context into a readable string for the LLM."""
@@ -126,7 +114,6 @@ def _format_evidence_for_llm(evidence: list[dict]) -> str:
         data = e.get("data", [])
         if isinstance(data, list):
             parts.append(f"\n### 证据{i}: {etype} ({len(data)}条记录)")
-            # Truncate for context window
             for item in data[:10]:
                 parts.append(f"  - {json.dumps(item, ensure_ascii=False)[:200]}")
             if len(data) > 10:
@@ -149,20 +136,15 @@ def extract_claims_llm(state: dict[str, Any], config: Config | None = None) -> d
     full_context = state.get("full_context", {})
     context_str = _format_context_for_llm(case_data, full_context)
 
-    llm = _get_llm(config)
-    messages = [
-        SystemMessage(content=EXTRACT_CLAIMS_SYSTEM),
-        HumanMessage(content=f"请分析以下案件并提取需要调查的主张:\n\n{context_str}"),
-    ]
+    llm = LLMClient(config)
+    result = llm.chat_json(
+        EXTRACT_CLAIMS_SYSTEM,
+        f"请分析以下案件并提取需要调查的主张:\n\n{context_str}",
+    )
 
-    response = llm.invoke(messages)
-    try:
-        parser = JsonOutputParser()
-        result = parser.parse(response.content)
-        claims = result.get("claims", [])
-    except Exception:
-        # Fallback to single claim from summary
-        logger.warning("Failed to parse LLM claims output, falling back to summary")
+    claims = result.get("claims", [])
+    if not claims:
+        # Fallback
         summary = case_data.get("summary", "") or case_data.get("description", "")
         claims = [{"id": "claim_1", "text": summary, "evidence_needed": "all", "status": "pending"}]
 
@@ -184,30 +166,22 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
     case_id = state["case_id"]
 
     # Ask LLM what tool to use
-    llm = _get_llm(config)
+    llm = LLMClient(config)
     evidence_str = _format_evidence_for_llm(evidence)
     claims_str = json.dumps(claims, ensure_ascii=False, indent=2)
 
-    messages = [
-        SystemMessage(content=INVESTIGATE_SYSTEM),
-        HumanMessage(content=(
+    result = llm.chat_json(
+        INVESTIGATE_SYSTEM,
+        (
             f"待验证主张:\n{claims_str}\n\n"
             f"已收集证据:\n{evidence_str}\n\n"
             f"已执行步骤数: {step_count}/{config.max_steps}\n"
             f"请决定下一步行动。"
-        )),
-    ]
+        ),
+    )
 
-    response = llm.invoke(messages)
-    try:
-        parser = JsonOutputParser()
-        result = parser.parse(response.content)
-        action = result.get("action", "done")
-        reasoning = result.get("reasoning", "")
-    except Exception:
-        logger.warning("Failed to parse LLM investigate output, defaulting to done")
-        action = "done"
-        reasoning = "parse_error"
+    action = result.get("action", "done")
+    reasoning = result.get("reasoning", "")
 
     if action == "done":
         steps.append({"stepIndex": step_count, "action": "done", "latencyMs": 0, "reasoning": reasoning})
@@ -267,33 +241,26 @@ def evaluate_llm(state: dict[str, Any], config: Config | None = None) -> dict[st
     claims = state.get("claims", [])
     evidence = state.get("evidence", [])
 
-    llm = _get_llm(config)
+    llm = LLMClient(config)
     context_str = _format_context_for_llm(case_data, full_context)
     evidence_str = _format_evidence_for_llm(evidence)
     claims_str = json.dumps(claims, ensure_ascii=False, indent=2)
 
-    messages = [
-        SystemMessage(content=EVALUATE_SYSTEM),
-        HumanMessage(content=(
+    result = llm.chat_json(
+        EVALUATE_SYSTEM,
+        (
             f"## 案件背景\n{context_str}\n\n"
             f"## 待评估主张\n{claims_str}\n\n"
             f"## 收集到的证据\n{evidence_str}\n\n"
             f"请对以上证据进行综合评估。"
-        )),
-    ]
+        ),
+    )
 
-    response = llm.invoke(messages)
-    try:
-        parser = JsonOutputParser()
-        result = parser.parse(response.content)
-        verdict = result.get("verdict", "inconclusive")
-        confidence = float(result.get("confidence", 0.5))
-        key_findings = result.get("key_findings", [])
-    except Exception:
-        logger.warning("Failed to parse LLM evaluate output")
+    verdict = result.get("verdict", "inconclusive")
+    if verdict not in ("supported", "unsupported", "inconclusive"):
         verdict = "inconclusive"
-        confidence = 0.3
-        key_findings = []
+    confidence = float(result.get("confidence", 0.5))
+    key_findings = result.get("key_findings", [])
 
     return {
         "verdict": verdict,
@@ -309,30 +276,26 @@ def report_llm(state: dict[str, Any], config: Config | None = None) -> dict[str,
 
     case_data = state.get("case_data", {})
     full_context = state.get("full_context", {})
-    claims = state.get("claims", [])
     evidence = state.get("evidence", [])
     verdict = state.get("verdict", "inconclusive")
     confidence = state.get("confidence", 0.0)
     steps = state.get("steps", [])
     key_findings = state.get("_key_findings", [])
 
-    llm = _get_llm(config)
+    llm = LLMClient(config)
     context_str = _format_context_for_llm(case_data, full_context)
     evidence_str = _format_evidence_for_llm(evidence)
 
-    messages = [
-        SystemMessage(content=REPORT_SYSTEM),
-        HumanMessage(content=(
+    report = llm.chat(
+        REPORT_SYSTEM,
+        (
             f"## 案件背景\n{context_str}\n\n"
             f"## 调查步骤\n共执行 {len(steps)} 步调查\n\n"
             f"## 收集到的证据\n{evidence_str}\n\n"
             f"## 评估结果\n- 裁决: {verdict}\n- 置信度: {confidence:.0%}\n"
             f"- 关键发现: {json.dumps(key_findings, ensure_ascii=False)}\n\n"
             f"请生成完整的调查报告。"
-        )),
-    ]
-
-    response = llm.invoke(messages)
-    report = response.content
+        ),
+    )
 
     return {"report": report}

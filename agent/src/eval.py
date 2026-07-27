@@ -212,9 +212,11 @@ def main():
     args = parser.parse_args()
 
     use_llm = args.mode == "llm"
-    if use_llm and not os.getenv("ANTHROPIC_API_KEY"):
-        logger.error("ANTHROPIC_API_KEY not set, cannot run LLM mode")
-        sys.exit(1)
+    if use_llm:
+        config = load_config()
+        if not config.llm_api_key:
+            logger.error("LLM_API_KEY not set in .env, cannot run LLM mode")
+            sys.exit(1)
 
     summary = evaluate_all(use_llm=use_llm)
 
