@@ -1,6 +1,18 @@
 # make_friends 纠错审计状态
 
-更新时间：2026-07-27
+更新时间：2026-07-28
+
+## 最新状态
+
+- 已完成并合入 `main`：活动内容审核、统一案件处理、outbox + Redis Streams、信用申诉回滚和配套测试。
+- 当前 `main` 提交为 `499e960`，对应功能分支提交链末尾为 `2c14c3e`。
+- 新增文档：
+  - `docs/BACKEND-MODERATION-CASES.md`
+  - `backend/README.md` 的后端运行说明
+  - `docs/DATABASE-OVERVIEW.md` 的新增表说明
+  - `README.md` 的总览入口说明
+- 已验证的核心测试包括审核状态流转、旧审核结果失效、案件上下文聚合、信用申诉回滚和既有结算回归。
+- 代码改动已提交；仓库里还留着一个无关的 `backend/data.zip` 未跟踪文件，未处理。
 
 ## 已完成
 
