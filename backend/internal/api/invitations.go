@@ -23,6 +23,7 @@ const (
 var (
 	errJoinAuthorOwnPost = errors.New("author cannot join own post")
 	errJoinPostClosed    = errors.New("post is closed")
+	errJoinPostPending   = errors.New("post is under moderation")
 	errJoinPostFull      = errors.New("post is full")
 	errJoinAlreadyJoined = errors.New("already joined")
 )
@@ -344,7 +345,7 @@ func writeInvitationActionError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "invitation or post not found"})
-	case errors.Is(err, errJoinAuthorOwnPost), errors.Is(err, errJoinPostClosed), errors.Is(err, errJoinPostFull):
+	case errors.Is(err, errJoinAuthorOwnPost), errors.Is(err, errJoinPostClosed), errors.Is(err, errJoinPostPending), errors.Is(err, errJoinPostFull):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, errJoinAlreadyJoined), err.Error() == "invitation already handled":
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
@@ -362,6 +363,9 @@ func (s *Server) joinPostTx(tx *gorm.DB, postID, userID string, now int64) (mode
 	}
 	if post.AuthorID == userID {
 		return post, errJoinAuthorOwnPost
+	}
+	if post.ModerationStatus != "" && post.ModerationStatus != model.ModerationApproved {
+		return post, errJoinPostPending
 	}
 	if post.DeletedAt > 0 || post.CancelledAt > 0 || post.Status == "closed" {
 		return post, errJoinPostClosed

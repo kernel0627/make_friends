@@ -38,6 +38,7 @@ const (
 	LedgerReviewCompleted      = "review_completed"
 	LedgerReviewMissed         = "review_missed"
 	LedgerManualCreditAdjust   = "manual_credit_adjust"
+	LedgerCreditAppealReversal = "credit_appeal_reversal"
 
 	AdminCaseSettlementDispute = "settlement_dispute"
 	AdminCaseManualCredit      = "manual_credit_review"
