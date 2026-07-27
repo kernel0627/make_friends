@@ -12,12 +12,14 @@ import (
 )
 
 func OpenSQLite() (*gorm.DB, error) {
-	dataDir := filepath.Join("data")
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create data dir: %w", err)
+	dbPath := os.Getenv("DATABASE_PATH")
+	if dbPath == "" {
+		dataDir := filepath.Join("data")
+		if err := os.MkdirAll(dataDir, 0o755); err != nil {
+			return nil, fmt.Errorf("create data dir: %w", err)
+		}
+		dbPath = filepath.Join(dataDir, "app.db")
 	}
-
-	dbPath := filepath.Join(dataDir, "app.db")
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", dbPath)
 
 	database, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})

@@ -33,8 +33,10 @@ class InvestigationState(TypedDict, total=False):
     step_count: int
 
     # Output
-    verdict: str  # "supported" | "unsupported" | "inconclusive"
+    verdict: str  # "upheld" | "rejected" | "insufficient_evidence"
     confidence: float
+    responsible_party: str
+    policy_violations: list[str]
     report: str
     error: str | None
 

@@ -205,6 +205,7 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
     # Execute the chosen tool
     client = BackendClient(config)
     start = time.time()
+    tool_error = ""
     try:
         if action == "get_domain_events":
             data = client.get_domain_events(case_id)
@@ -245,11 +246,18 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
         else:
             logger.warning(f"Unknown action: {action}, treating as done")
             action = "done"
+    except Exception as e:
+        tool_error = str(e)
+        logger.warning(f"Tool {action} failed: {e}")
+        evidence.append({"type": f"error:{action}", "data": tool_error})
     finally:
         client.close()
 
     latency_ms = int((time.time() - start) * 1000)
-    steps.append({"stepIndex": step_count, "action": action, "latencyMs": latency_ms, "reasoning": reasoning})
+    step_record = {"stepIndex": step_count, "action": action, "latencyMs": latency_ms, "reasoning": reasoning}
+    if tool_error:
+        step_record["error"] = tool_error
+    steps.append(step_record)
 
     return {"evidence": evidence, "steps": steps, "step_count": step_count + 1}
 
