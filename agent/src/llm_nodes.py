@@ -116,6 +116,17 @@ REPORT_SYSTEM = """你是一个案件报告撰写员。根据调查结果生成�
 
 # --- Helpers ---
 
+_MAX_OUTPUT_LEN = 4000  # Max chars stored in step output (avoid bloating DB)
+
+
+def _truncate_output(data: Any) -> str:
+    """Serialize data to JSON, truncating if too long."""
+    raw = json.dumps(data, ensure_ascii=False)
+    if len(raw) > _MAX_OUTPUT_LEN:
+        return raw[:_MAX_OUTPUT_LEN] + "...(truncated)"
+    return raw
+
+
 def _format_context_for_llm(case_data: dict, full_context: dict) -> str:
     """Format case context into a readable string for the LLM."""
     parts = []
@@ -216,50 +227,62 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
     params = result.get("params", {})
 
     if action == "done":
-        steps.append({"stepIndex": step_count, "action": "done", "latencyMs": 0, "reasoning": reasoning})
+        steps.append({"stepIndex": step_count, "action": "done", "latencyMs": 0, "reasoning": reasoning, "input": "{}", "output": "{}"})
         return {"evidence": evidence, "steps": steps, "step_count": step_count + 1, "_done": True}
 
     # Execute the chosen tool
     client = BackendClient(config)
     start = time.time()
     tool_error = ""
+    tool_input = json.dumps(params, ensure_ascii=False) if params else "{}"
+    tool_output = ""
     try:
         if action == "get_domain_events":
             data = client.get_domain_events(case_id)
             evidence.append({"type": "domain_events", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_chat_messages":
             data = client.get_chat_messages(case_id)
             evidence.append({"type": "chat_messages", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_user_profile":
             target_id = params.get("user_id") or case_data.get("targetUserId", "")
             if target_id:
                 data = client.get_user_profile(target_id)
                 evidence.append({"type": "user_profile", "data": data})
+                tool_output = _truncate_output(data)
         elif action == "get_user_history":
             target_id = params.get("user_id") or case_data.get("targetUserId", "")
             if target_id:
                 data = client.get_user_history(target_id)
                 evidence.append({"type": "user_history", "data": data})
+                tool_output = _truncate_output(data)
         elif action == "get_content_snapshots":
             data = client.get_content_snapshots(case_id)
             evidence.append({"type": "content_snapshots", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_notifications":
             data = client.get_notifications(case_id)
             evidence.append({"type": "notifications", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_settlements":
             data = client.get_settlements(case_id)
             evidence.append({"type": "settlements", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_credit_ledger":
             data = client.get_credit_ledger(case_id)
             evidence.append({"type": "credit_ledger", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_reports":
             data = client.get_reports(case_id)
             evidence.append({"type": "reports", "data": data})
+            tool_output = _truncate_output(data)
         elif action == "get_policy":
             policy_id = params.get("policy_id", "")
             if policy_id:
                 data = client.get_policy(policy_id)
                 evidence.append({"type": f"policy:{policy_id}", "data": data})
+                tool_output = _truncate_output(data)
         else:
             logger.warning(f"Unknown action: {action}, treating as done")
             action = "done"
@@ -267,11 +290,19 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
         tool_error = str(e)
         logger.warning(f"Tool {action} failed: {e}")
         evidence.append({"type": f"error:{action}", "data": tool_error})
+        tool_output = json.dumps({"error": tool_error})
     finally:
         client.close()
 
     latency_ms = int((time.time() - start) * 1000)
-    step_record = {"stepIndex": step_count, "action": action, "latencyMs": latency_ms, "reasoning": reasoning}
+    step_record = {
+        "stepIndex": step_count,
+        "action": action,
+        "latencyMs": latency_ms,
+        "reasoning": reasoning,
+        "input": tool_input,
+        "output": tool_output or "{}",
+    }
     if tool_error:
         step_record["error"] = tool_error
     steps.append(step_record)

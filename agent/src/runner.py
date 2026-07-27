@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any
 
@@ -23,13 +24,20 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
 
     client = BackendClient(config)
 
-    # Create a run record in the backend
-    run_data = client.create_run(case_id, model=config.llm_model)
-    run_id = run_data["id"]
-    logger.info(f"Created agent run {run_id} for case {case_id}")
-
-    # Mark run as running
-    client.update_run(run_id, status="running")
+    # If a run ID was pre-created by the Go backend, reuse it
+    pre_run_id = os.environ.get("AGENT_RUN_ID", "").strip()
+    if pre_run_id:
+        run_id = pre_run_id
+        # Update existing run record
+        client.update_run(run_id, status="running", model=config.llm_model)
+        logger.info(f"Reusing pre-created agent run {run_id} for case {case_id}")
+    else:
+        # Create a new run record in the backend
+        run_data = client.create_run(case_id, model=config.llm_model)
+        run_id = run_data["id"]
+        logger.info(f"Created agent run {run_id} for case {case_id}")
+        # Mark run as running
+        client.update_run(run_id, status="running")
 
     try:
         # Build and compile the graph
@@ -52,6 +60,9 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
                 step_index=step["stepIndex"],
                 action=step["action"],
                 latencyMs=step.get("latencyMs", 0),
+                input=step.get("input", "{}"),
+                output=step.get("output", "{}"),
+                reasoning=step.get("reasoning", ""),
             )
 
         # Write decision to backend

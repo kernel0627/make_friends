@@ -468,11 +468,12 @@ func (s *Server) agentCreateRun(c *gin.Context) {
 }
 
 type updateRunReq struct {
-	Status      string `json:"status"`
-	Report      string `json:"report"`
-	ErrorMsg    string `json:"errorMsg"`
-	TokensUsed  int    `json:"tokensUsed"`
-	StepCount   int    `json:"stepCount"`
+	Status     string `json:"status"`
+	Model      string `json:"model"`
+	Report     string `json:"report"`
+	ErrorMsg   string `json:"errorMsg"`
+	TokensUsed int    `json:"tokensUsed"`
+	StepCount  int    `json:"stepCount"`
 }
 
 func (s *Server) agentUpdateRun(c *gin.Context) {
@@ -504,6 +505,9 @@ func (s *Server) agentUpdateRun(c *gin.Context) {
 	}
 	if req.StepCount > 0 {
 		updates["step_count"] = req.StepCount
+	}
+	if req.Model != "" {
+		updates["model"] = req.Model
 	}
 	if len(updates) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})

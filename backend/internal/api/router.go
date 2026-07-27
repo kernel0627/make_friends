@@ -171,6 +171,10 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 				admin.POST("/posts/:id/restore", s.RestoreAdminPost)
 				admin.GET("/posts/:id/settlement", s.GetSettlement)
 				admin.GET("/reviews", s.ListAdminReviews)
+				// Agent investigation
+				admin.POST("/cases/:id/investigate", s.InvestigateCase)
+				admin.GET("/agent-runs", s.ListAgentRuns)
+				admin.GET("/agent-runs/:id", s.GetAgentRun)
 				admin.GET("/admin-users", s.ListAdminAccounts)
 				rootAdmin := admin.Group("")
 				rootAdmin.Use(s.RequireRootAdmin())

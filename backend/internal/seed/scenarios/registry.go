@@ -7,18 +7,23 @@ func AllScenarios() []*Scenario {
 		ContentCommercialReport(),
 		ContentOffPlatformLegitimate(),
 		ContentReportFalsePositive(),
+		ContentRepeatReporter(),
 
 		// Settlement disputes
 		SettlementNoShowClear(),
 		SettlementMaterialChange(),
 		SettlementDisputeAmbiguous(),
+		SettlementMultipartyDispute(),
+		SettlementBoundaryCancelTiming(),
 
 		// Moderation appeals
 		ModerationAppealLegitimate(),
 		ModerationAppealGuilty(),
+		ModerationAppealEscalation(),
 
 		// Credit appeals
 		CreditAppealAfterNoShow(),
 		CreditAppealUnfounded(),
+		CreditContradictoryEvidence(),
 	}
 }

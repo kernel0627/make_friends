@@ -55,6 +55,26 @@
     ]
   },
   {
+    "scenario_id": "content_repeat_reporter_01",
+    "case_type": "content_report",
+    "difficulty": "medium",
+    "expected_outcome": "rejected",
+    "responsible_party": "",
+    "policy_refs": [
+      "content_commercial"
+    ],
+    "required_evidence": [
+      "post_content",
+      "reporter_history",
+      "chat_messages"
+    ],
+    "forbidden_claims": [
+      "commercial_activity",
+      "policy_violation",
+      "off_platform_contact"
+    ]
+  },
+  {
     "scenario_id": "settlement_noshow_clear_01",
     "case_type": "settlement_dispute",
     "difficulty": "easy",
@@ -112,6 +132,44 @@
     ]
   },
   {
+    "scenario_id": "settlement_multiparty_01",
+    "case_type": "settlement_dispute",
+    "difficulty": "hard",
+    "expected_outcome": "upheld",
+    "responsible_party": "author",
+    "policy_refs": [
+      "settlement_no_show"
+    ],
+    "required_evidence": [
+      "settlement_records",
+      "chat_messages",
+      "participant_testimony"
+    ],
+    "forbidden_claims": [
+      "activity_cancelled",
+      "author_attended"
+    ]
+  },
+  {
+    "scenario_id": "settlement_boundary_cancel_01",
+    "case_type": "settlement_dispute",
+    "difficulty": "hard",
+    "expected_outcome": "upheld",
+    "responsible_party": "author",
+    "policy_refs": [
+      "settlement_no_show"
+    ],
+    "required_evidence": [
+      "cancel_timestamp",
+      "chat_notice_timestamp",
+      "system_cancel_record"
+    ],
+    "forbidden_claims": [
+      "timely_cancellation",
+      "24h_notice_met"
+    ]
+  },
+  {
     "scenario_id": "moderation_appeal_legit_01",
     "case_type": "moderation_appeal",
     "difficulty": "medium",
@@ -146,6 +204,26 @@
     "forbidden_claims": [
       "false_positive",
       "system_error"
+    ]
+  },
+  {
+    "scenario_id": "moderation_appeal_escalation_01",
+    "case_type": "moderation_appeal",
+    "difficulty": "hard",
+    "expected_outcome": "upheld",
+    "responsible_party": "",
+    "policy_refs": [
+      "content_off_platform"
+    ],
+    "required_evidence": [
+      "moderation_record",
+      "content_snapshot",
+      "first_appeal_record",
+      "clarifying_evidence"
+    ],
+    "forbidden_claims": [
+      "off_platform_contact",
+      "qq_account_sharing"
     ]
   },
   {
@@ -185,6 +263,26 @@
     "forbidden_claims": [
       "system_error",
       "advance_notice_given"
+    ]
+  },
+  {
+    "scenario_id": "credit_contradictory_evidence_01",
+    "case_type": "credit_appeal",
+    "difficulty": "hard",
+    "expected_outcome": "upheld",
+    "responsible_party": "",
+    "policy_refs": [
+      "credit_reversal"
+    ],
+    "required_evidence": [
+      "chat_arrival_message",
+      "participant_corroboration",
+      "settlement_record",
+      "weather_context"
+    ],
+    "forbidden_claims": [
+      "no_show_confirmed",
+      "appellant_absent"
     ]
   }
 ]
