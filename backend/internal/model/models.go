@@ -18,27 +18,31 @@ type User struct {
 }
 
 type Post struct {
-	ID           string  `gorm:"primaryKey;size:64" json:"id"`
-	AuthorID     string  `gorm:"size:64;not null;index" json:"authorId"`
-	Title        string  `gorm:"size:255;not null" json:"title"`
-	Description  string  `gorm:"type:text;not null;default:''" json:"description"`
-	Category     string  `gorm:"size:64;not null;index:idx_posts_category" json:"category"`
-	SubCategory  string  `gorm:"size:64;not null;default:'';index:idx_posts_category" json:"subCategory"`
-	TimeMode     string  `gorm:"size:16;not null" json:"timeMode"`
-	TimeDays     int     `json:"timeDays"`
-	FixedTime    string  `gorm:"size:64" json:"fixedTime"`
-	Address      string  `gorm:"size:255;not null" json:"address"`
-	Lat          float64 `json:"lat"`
-	Lng          float64 `json:"lng"`
-	MaxCount     int     `gorm:"not null" json:"maxCount"`
-	CurrentCount int     `gorm:"not null;default:0" json:"currentCount"`
-	Status       string  `gorm:"size:16;not null;default:open" json:"status"`
-	CancelledAt  int64   `gorm:"not null;default:0;index" json:"cancelledAt"`
-	DeletedAt    int64   `gorm:"not null;default:0;index" json:"deletedAt"`
-	DeletedBy    string  `gorm:"size:64;not null;default:''" json:"deletedBy"`
-	ClosedAt     int64   `gorm:"not null;default:0;index" json:"closedAt"`
-	CreatedAt    int64   `gorm:"not null;index:idx_posts_created_at,sort:desc" json:"createdAt"`
-	UpdatedAt    int64   `gorm:"not null" json:"updatedAt"`
+	ID                  string  `gorm:"primaryKey;size:64" json:"id"`
+	AuthorID            string  `gorm:"size:64;not null;index" json:"authorId"`
+	Title               string  `gorm:"size:255;not null" json:"title"`
+	Description         string  `gorm:"type:text;not null;default:''" json:"description"`
+	Category            string  `gorm:"size:64;not null;index:idx_posts_category" json:"category"`
+	SubCategory         string  `gorm:"size:64;not null;default:'';index:idx_posts_category" json:"subCategory"`
+	TimeMode            string  `gorm:"size:16;not null" json:"timeMode"`
+	TimeDays            int     `json:"timeDays"`
+	FixedTime           string  `gorm:"size:64" json:"fixedTime"`
+	Address             string  `gorm:"size:255;not null" json:"address"`
+	Lat                 float64 `json:"lat"`
+	Lng                 float64 `json:"lng"`
+	MaxCount            int     `gorm:"not null" json:"maxCount"`
+	CurrentCount        int     `gorm:"not null;default:0" json:"currentCount"`
+	Status              string  `gorm:"size:16;not null;default:open" json:"status"`
+	ModerationStatus    string  `gorm:"size:24;not null;default:approved;index" json:"moderationStatus"`
+	CurrentModerationID string  `gorm:"size:64;not null;default:'';index" json:"currentModerationId"`
+	ContentHash         string  `gorm:"size:128;not null;default:'';index" json:"contentHash"`
+	ModerationUpdatedAt int64   `gorm:"not null;default:0;index" json:"moderationUpdatedAt"`
+	CancelledAt         int64   `gorm:"not null;default:0;index" json:"cancelledAt"`
+	DeletedAt           int64   `gorm:"not null;default:0;index" json:"deletedAt"`
+	DeletedBy           string  `gorm:"size:64;not null;default:''" json:"deletedBy"`
+	ClosedAt            int64   `gorm:"not null;default:0;index" json:"closedAt"`
+	CreatedAt           int64   `gorm:"not null;index:idx_posts_created_at,sort:desc" json:"createdAt"`
+	UpdatedAt           int64   `gorm:"not null" json:"updatedAt"`
 }
 
 type PostParticipant struct {
@@ -136,20 +140,80 @@ type CreditLedger struct {
 }
 
 type AdminCase struct {
-	ID             string `gorm:"primaryKey;size:64" json:"id"`
-	CaseType       string `gorm:"size:32;not null;index" json:"caseType"`
-	PostID         string `gorm:"size:64;not null;index" json:"postId"`
-	TargetUserID   string `gorm:"size:64;not null;index" json:"targetUserId"`
-	ReporterUserID string `gorm:"size:64;not null;index" json:"reporterUserId"`
-	ResolverUserID string `gorm:"size:64;not null;default:'';index" json:"resolverUserId"`
-	Status         string `gorm:"size:16;not null;default:open;index" json:"status"`
-	Resolution     string `gorm:"size:32;not null;default:''" json:"resolution"`
-	ResolutionNote string `gorm:"type:text;not null;default:''" json:"resolutionNote"`
-	ResolvedAt     int64  `gorm:"not null;default:0;index" json:"resolvedAt"`
-	SourceRef      string `gorm:"size:128;not null;uniqueIndex" json:"sourceRef"`
-	Summary        string `gorm:"type:text;not null;default:''" json:"summary"`
+	ID               string `gorm:"primaryKey;size:64" json:"id"`
+	CaseType         string `gorm:"size:32;not null;index" json:"caseType"`
+	PostID           string `gorm:"size:64;not null;index" json:"postId"`
+	TargetUserID     string `gorm:"size:64;not null;index" json:"targetUserId"`
+	ReporterUserID   string `gorm:"size:64;not null;index" json:"reporterUserId"`
+	ResolverUserID   string `gorm:"size:64;not null;default:'';index" json:"resolverUserId"`
+	Status           string `gorm:"size:16;not null;default:open;index" json:"status"`
+	Resolution       string `gorm:"size:32;not null;default:''" json:"resolution"`
+	ResolutionNote   string `gorm:"type:text;not null;default:''" json:"resolutionNote"`
+	ResolvedAt       int64  `gorm:"not null;default:0;index" json:"resolvedAt"`
+	SourceRef        string `gorm:"size:128;not null;uniqueIndex" json:"sourceRef"`
+	Summary          string `gorm:"type:text;not null;default:''" json:"summary"`
+	SourceType       string `gorm:"size:32;not null;default:'';index" json:"sourceType"`
+	SourceID         string `gorm:"size:128;not null;default:'';index" json:"sourceId"`
+	ReporterID       string `gorm:"size:64;not null;default:'';index" json:"reporterId"`
+	Description      string `gorm:"type:text;not null;default:''" json:"description"`
+	EvidenceSnapshot string `gorm:"type:text;not null;default:'{}'" json:"evidenceSnapshot"`
+	Decision         string `gorm:"size:32;not null;default:''" json:"decision"`
+	DecisionReason   string `gorm:"type:text;not null;default:''" json:"decisionReason"`
+	CreatedAt        int64  `gorm:"not null;index" json:"createdAt"`
+	UpdatedAt        int64  `gorm:"not null" json:"updatedAt"`
+}
+
+const (
+	ModerationPending       = "pending"
+	ModerationApproved      = "approved"
+	ModerationNeedsRevision = "needs_revision"
+	ModerationManualReview  = "manual_review"
+	ModerationRejected      = "rejected"
+
+	CaseTypeContentReport     = "content_report"
+	CaseTypeModerationAppeal  = "moderation_appeal"
+	CaseTypeSettlementDispute = "settlement_dispute"
+	CaseTypeCreditAppeal      = "credit_appeal"
+)
+
+type ModerationRecord struct {
+	ID              string  `gorm:"primaryKey;size:64" json:"id"`
+	PostID          string  `gorm:"size:64;not null;index;uniqueIndex:uq_moderation_post_hash" json:"postId"`
+	ContentHash     string  `gorm:"size:128;not null;uniqueIndex:uq_moderation_post_hash" json:"contentHash"`
+	Status          string  `gorm:"size:24;not null;default:pending;index" json:"status"`
+	MatchedPolicies string  `gorm:"type:text;not null;default:'[]'" json:"matchedPolicies"`
+	Evidence        string  `gorm:"type:text;not null;default:'[]'" json:"evidence"`
+	DecisionReason  string  `gorm:"type:text;not null;default:''" json:"decisionReason"`
+	Confidence      float64 `gorm:"not null;default:0" json:"confidence"`
+	Model           string  `gorm:"size:64;not null;default:'rules'" json:"model"`
+	PolicyVersion   string  `gorm:"size:64;not null;default:'v1'" json:"policyVersion"`
+	AttemptCount    int     `gorm:"not null;default:0" json:"attemptCount"`
+	ErrorMessage    string  `gorm:"type:text;not null;default:''" json:"errorMessage"`
+	IdempotencyKey  string  `gorm:"size:128;not null;default:'';uniqueIndex" json:"-"`
+	CreatedAt       int64   `gorm:"not null;index" json:"createdAt"`
+	FinishedAt      int64   `gorm:"not null;default:0" json:"finishedAt"`
+}
+
+type CaseEvent struct {
+	ID        uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	CaseID    string `gorm:"size:64;not null;index" json:"caseId"`
+	EventType string `gorm:"size:32;not null;index" json:"eventType"`
+	ActorID   string `gorm:"size:64;not null;default:'';index" json:"actorId"`
+	Payload   string `gorm:"type:text;not null;default:'{}'" json:"payload"`
+	CreatedAt int64  `gorm:"not null;index" json:"createdAt"`
+}
+
+type OutboxEvent struct {
+	ID             uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	EventType      string `gorm:"size:64;not null;index" json:"eventType"`
+	AggregateID    string `gorm:"size:128;not null;index" json:"aggregateId"`
+	IdempotencyKey string `gorm:"size:128;not null;uniqueIndex" json:"-"`
+	Payload        string `gorm:"type:text;not null;default:'{}'" json:"payload"`
+	Status         string `gorm:"size:16;not null;default:pending;index" json:"status"`
+	RetryCount     int    `gorm:"not null;default:0" json:"retryCount"`
+	ErrorMessage   string `gorm:"type:text;not null;default:''" json:"errorMessage"`
 	CreatedAt      int64  `gorm:"not null;index" json:"createdAt"`
-	UpdatedAt      int64  `gorm:"not null" json:"updatedAt"`
+	PublishedAt    int64  `gorm:"not null;default:0" json:"publishedAt"`
 }
 
 type UserTag struct {

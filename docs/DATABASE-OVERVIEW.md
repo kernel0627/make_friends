@@ -46,6 +46,10 @@
 - `max_count`
 - `current_count`
 - `status`
+- `moderation_status`
+- `current_moderation_id`
+- `content_hash`
+- `moderation_updated_at`
 - `closed_at`
 - `cancelled_at`
 
@@ -53,6 +57,8 @@
 
 - `status` 驱动活动是否开放、是否关闭
 - `closed_at` 表示“结束活动”时间，不再拆新的结束时间字段
+- `moderation_status` 驱动活动是否还能报名、邀请、进入正常曝光
+- `content_hash` 用于防止旧审核结果覆盖新内容
 
 ### `post_participants`
 
@@ -143,11 +149,74 @@
 - `note`
 - `operator_user_id`
 
+### `moderation_records`
+
+活动审核任务与结果表。
+
+关键字段：
+
+- `id`
+- `post_id`
+- `content_hash`
+- `status`
+- `matched_policies`
+- `evidence`
+- `decision_reason`
+- `confidence`
+- `model`
+- `policy_version`
+- `attempt_count`
+- `error_message`
+- `created_at`
+- `finished_at`
+
+### `outbox_events`
+
+可靠异步投递表。
+
+关键字段：
+
+- `event_type`
+- `aggregate_id`
+- `idempotency_key`
+- `payload`
+- `status`
+- `retry_count`
+- `error_message`
+- `created_at`
+- `published_at`
+
 ## 管理与推荐相关表
 
 ### `admin_cases`
 
-管理后台争议 / 工单。
+统一案件表，承载内容举报、审核申诉、履约争议和信用申诉。
+
+关键字段：
+
+- `case_type`
+- `source_type`
+- `source_id`
+- `reporter_id`
+- `status`
+- `description`
+- `evidence_snapshot`
+- `decision`
+- `decision_reason`
+- `resolver_user_id`
+- `resolved_at`
+
+### `case_events`
+
+案件操作历史表。
+
+关键字段：
+
+- `case_id`
+- `event_type`
+- `actor_id`
+- `payload`
+- `created_at`
 
 ### `user_tags`
 
@@ -181,4 +250,6 @@ Access Token 黑名单。
 - 一个 `post` 可以有多个 `post_participants`
 - 一个 `post` 可以有多条 `chat_messages`
 - 一个 `post` 关闭后，会产生 `post_participant_settlements`、`reviews`、`activity_scores`、`credit_ledgers`
+- `moderation_records` 记录活动审核任务与结果，`outbox_events` 记录可靠异步投递
+- `admin_cases` + `case_events` 统一承载举报、申诉和履约争议
 - `user_tags`、`feed_exposures`、`feed_clicks`、embedding 表服务于推荐系统

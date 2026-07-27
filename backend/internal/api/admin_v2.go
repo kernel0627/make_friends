@@ -132,21 +132,22 @@ func (s *Server) CreateAdminPost(c *gin.Context) {
 	}
 	authorID = author.ID
 	post := model.Post{
-		ID:           "post_" + uuid.NewString()[:8],
-		AuthorID:     authorID,
-		Title:        strings.TrimSpace(req.Title),
-		Description:  strings.TrimSpace(req.Description),
-		Category:     strings.TrimSpace(req.Category),
-		SubCategory:  strings.TrimSpace(req.SubCategory),
-		TimeMode:     strings.TrimSpace(req.TimeInfo.Mode),
-		TimeDays:     req.TimeInfo.Days,
-		FixedTime:    strings.TrimSpace(req.TimeInfo.FixedTime),
-		Address:      strings.TrimSpace(req.Address),
-		MaxCount:     req.MaxCount,
-		CurrentCount: 1,
-		Status:       normalizePostStatus(req.Status),
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:               "post_" + uuid.NewString()[:8],
+		AuthorID:         authorID,
+		Title:            strings.TrimSpace(req.Title),
+		Description:      strings.TrimSpace(req.Description),
+		Category:         strings.TrimSpace(req.Category),
+		SubCategory:      strings.TrimSpace(req.SubCategory),
+		TimeMode:         strings.TrimSpace(req.TimeInfo.Mode),
+		TimeDays:         req.TimeInfo.Days,
+		FixedTime:        strings.TrimSpace(req.TimeInfo.FixedTime),
+		Address:          strings.TrimSpace(req.Address),
+		MaxCount:         req.MaxCount,
+		CurrentCount:     1,
+		Status:           normalizePostStatus(req.Status),
+		ModerationStatus: model.ModerationPending,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	if req.Coords != nil {
 		post.Lat = req.Coords.Latitude
@@ -155,7 +156,18 @@ func (s *Server) CreateAdminPost(c *gin.Context) {
 	if post.Status == "closed" {
 		post.ClosedAt = now
 	}
-	if err := s.DB.Create(&post).Error; err != nil {
+	if err := s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&post).Error; err != nil {
+			return err
+		}
+		if err := enqueuePostModerationTx(tx, &post, "admin:post:"+post.ID, now); err != nil {
+			return err
+		}
+		return tx.Model(&model.Post{}).Where("id = ?", post.ID).Updates(map[string]any{
+			"moderation_status": post.ModerationStatus, "current_moderation_id": post.CurrentModerationID,
+			"content_hash": post.ContentHash, "moderation_updated_at": post.ModerationUpdatedAt,
+		}).Error
+	}); err != nil {
 		fail(c, http.StatusInternalServerError, "CREATE_POST_FAILED", "create post failed")
 		return
 	}
@@ -206,6 +218,9 @@ func (s *Server) UpdateAdminPost(c *gin.Context) {
 		post.Address = strings.TrimSpace(req.Address)
 		post.MaxCount = req.MaxCount
 		post.UpdatedAt = now
+		if err := enqueuePostModerationTx(tx, &post, "admin:post:"+post.ID+":"+postContentHash(post), now); err != nil {
+			return err
+		}
 		if req.Coords != nil {
 			post.Lat = req.Coords.Latitude
 			post.Lng = req.Coords.Longitude

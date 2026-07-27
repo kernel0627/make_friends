@@ -50,32 +50,11 @@ const contextTokenJTIKey = "tokenJTI"
 var errRefreshTokenReplayed = errors.New("refresh token already rotated")
 
 func NewRouter(db *gorm.DB) *gin.Engine {
-	useRedis := envBool("USE_REDIS", false)
-	redisClient := buildRedisClient(useRedis)
-	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
-	if jwtSecret == "" || jwtSecret == "dev_secret_change_me" {
-		if gin.Mode() == gin.ReleaseMode {
-			log.Fatal("JWT_SECRET must be set to a non-default value in release mode")
-		}
-		if jwtSecret == "" {
-			jwtSecret = "dev_secret_change_me"
-		}
-		log.Printf("WARNING: using insecure development JWT secret; set JWT_SECRET before deploying")
-	}
+	return NewRouterWithServer(NewServer(db))
+}
+
+func NewRouterWithServer(s *Server) *gin.Engine {
 	limits := newRateLimits()
-	s := &Server{
-		DB:                    db,
-		JWTSecret:             jwtSecret,
-		WechatAppID:           os.Getenv("WECHAT_APP_ID"),
-		WechatSecret:          os.Getenv("WECHAT_APP_SECRET"),
-		HTTPClient:            &http.Client{Timeout: 8 * time.Second},
-		TokenExpireHr:         24 * 7,
-		RefreshExpire:         24 * 30,
-		RedisClient:           redisClient,
-		UseRedis:              useRedis && redisClient != nil,
-		WSEnabled:             envBool("WS_ENABLED", true),
-		AccountFailureLimiter: limits.accountFailures,
-	}
 	authLimit := limits.authIP.limitBy("RATE_LIMITED", "too many attempts, please retry later", authAttemptKey)
 	sessionLimit := limits.sessionIP.limitBy("RATE_LIMITED", "too many requests", authAttemptKey)
 	smartDraftLimit := limits.smartDraft.limitBy("RATE_LIMITED", "smart draft quota exceeded, please retry later", userOrIPKey)
@@ -115,6 +94,7 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 
 		v1.GET("/posts", s.ListPosts)
 		v1.GET("/posts/:id", s.GetPost)
+		v1.GET("/posts/:id/moderation", s.GetPostModeration)
 		v1.GET("/posts/:id/settlement", s.GetSettlement)
 		v1.GET("/calendar/activity-heatmap", s.CalendarActivityHeatmap)
 		v1.GET("/calendar/activity-posts", s.CalendarActivityPosts)
@@ -143,6 +123,10 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 			authed.POST("/posts/smart-draft", smartDraftLimit, s.SmartPostDraft)
 			authed.POST("/posts", s.CreatePost)
 			authed.PUT("/posts/:id", s.UpdatePost)
+			authed.POST("/messages/:id/reports", s.ReportMessage)
+			authed.POST("/posts/:id/reports", s.ReportPost)
+			authed.POST("/moderations/:id/appeals", s.AppealModeration)
+			authed.POST("/credit-ledgers/:id/appeals", s.AppealCreditLedger)
 			authed.POST("/posts/:id/join", s.JoinPost)
 			authed.POST("/posts/:id/participation/cancel", s.CancelParticipation)
 			authed.POST("/posts/:id/close", s.ClosePost)
@@ -161,6 +145,12 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 				admin.GET("/cases", s.ListAdminCases)
 				admin.GET("/cases/:id", s.GetAdminCase)
 				admin.POST("/cases/:id/resolve", s.ResolveAdminCase)
+				admin.POST("/cases/:id/decision", s.DecideAdminCase)
+				admin.POST("/cases/:id/reopen", s.ReopenAdminCase)
+				admin.GET("/cases/:id/context", s.GetAdminCaseContext)
+				admin.GET("/moderations", s.ListAdminModerations)
+				admin.GET("/moderations/:id", s.GetAdminModeration)
+				admin.POST("/moderations/:id/decision", s.DecideAdminModeration)
 				admin.GET("/users", s.ListAdminUsers)
 				admin.POST("/users", s.CreateAdminUser)
 				admin.GET("/users/:id", s.GetAdminUser)
@@ -193,6 +183,40 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	return r
+}
+
+func NewServer(db *gorm.DB) *Server {
+	// Keep test-created databases and older local databases forward compatible
+	// with the moderation/case tables introduced after the initial schema.
+	if err := db.AutoMigrate(&model.ModerationRecord{}, &model.CaseEvent{}, &model.OutboxEvent{}); err != nil {
+		log.Printf("WARNING: moderation schema migration failed: %v", err)
+	}
+	useRedis := envBool("USE_REDIS", false)
+	redisClient := buildRedisClient(useRedis)
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if jwtSecret == "" || jwtSecret == "dev_secret_change_me" {
+		if gin.Mode() == gin.ReleaseMode {
+			log.Fatal("JWT_SECRET must be set to a non-default value in release mode")
+		}
+		if jwtSecret == "" {
+			jwtSecret = "dev_secret_change_me"
+		}
+		log.Printf("WARNING: using insecure development JWT secret; set JWT_SECRET before deploying")
+	}
+	limits := newRateLimits()
+	return &Server{
+		DB:                    db,
+		JWTSecret:             jwtSecret,
+		WechatAppID:           os.Getenv("WECHAT_APP_ID"),
+		WechatSecret:          os.Getenv("WECHAT_APP_SECRET"),
+		HTTPClient:            &http.Client{Timeout: 8 * time.Second},
+		TokenExpireHr:         24 * 7,
+		RefreshExpire:         24 * 30,
+		RedisClient:           redisClient,
+		UseRedis:              useRedis && redisClient != nil,
+		WSEnabled:             envBool("WS_ENABLED", true),
+		AccountFailureLimiter: limits.accountFailures,
+	}
 }
 
 func envOrDefault(key, fallback string) string {
@@ -912,6 +936,7 @@ func (s *Server) GetPost(c *gin.Context) {
 		"post":         views[0],
 		"participants": participantViews,
 	}
+	setPostETag(c, post)
 	if cached {
 		resp["cached"] = true
 	}
@@ -944,6 +969,15 @@ func (s *Server) CreatePost(c *gin.Context) {
 		if err := tx.Create(&post).Error; err != nil {
 			return err
 		}
+		if err := enqueuePostModerationTx(tx, &post, moderationIdempotencyKey(c, post.ID, postContentHash(post)), now); err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Post{}).Where("id = ?", post.ID).Updates(map[string]any{
+			"moderation_status": post.ModerationStatus, "current_moderation_id": post.CurrentModerationID,
+			"content_hash": post.ContentHash, "moderation_updated_at": post.ModerationUpdatedAt,
+		}).Error; err != nil {
+			return err
+		}
 		return s.createPostInvitationsTx(tx, post.ID, userID, req.invitationInputs(), now)
 	}); err != nil {
 		serverError(c, err)
@@ -963,9 +997,11 @@ func (s *Server) CreatePost(c *gin.Context) {
 	})
 	views, err := s.buildPostViews([]model.Post{post})
 	if err != nil || len(views) == 0 {
+		setPostETag(c, post)
 		c.JSON(http.StatusOK, gin.H{"post": post})
 		return
 	}
+	setPostETag(c, post)
 	c.JSON(http.StatusOK, gin.H{"post": views[0]})
 }
 
@@ -992,9 +1028,42 @@ func (s *Server) UpdatePost(c *gin.Context) {
 		return
 	}
 
+	expectedUpdatedAt := strings.TrimSpace(c.GetHeader("If-Match"))
+	if expectedUpdatedAt != "" && strings.Trim(expectedUpdatedAt, `"`) != strconv.FormatInt(post.UpdatedAt, 10) {
+		c.JSON(http.StatusPreconditionFailed, gin.H{"error": "post was modified; refresh and retry"})
+		return
+	}
 	req.applyToPost(&post, now)
 
-	if err := s.DB.Save(&post).Error; err != nil {
+	if err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var current model.Post
+		if err := tx.First(&current, "id = ?", post.ID).Error; err != nil {
+			return err
+		}
+		if err := enqueuePostModerationTx(tx, &post, moderationIdempotencyKey(c, post.ID, postContentHash(post)), now); err != nil {
+			return err
+		}
+		result := tx.Model(&model.Post{}).Where("id = ? AND updated_at = ?", post.ID, current.UpdatedAt).
+			Updates(map[string]any{
+				"title": post.Title, "description": post.Description, "category": post.Category,
+				"sub_category": post.SubCategory, "time_mode": post.TimeMode, "time_days": post.TimeDays,
+				"fixed_time": post.FixedTime, "address": post.Address, "lat": post.Lat, "lng": post.Lng,
+				"max_count": post.MaxCount, "updated_at": post.UpdatedAt,
+				"moderation_status": post.ModerationStatus, "current_moderation_id": post.CurrentModerationID,
+				"content_hash": post.ContentHash, "moderation_updated_at": post.ModerationUpdatedAt,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrInvalidData
+		}
+		return nil
+	}); err != nil {
+		if errors.Is(err, gorm.ErrInvalidData) {
+			c.JSON(http.StatusPreconditionFailed, gin.H{"error": "post was modified; refresh and retry"})
+			return
+		}
 		serverError(c, err)
 		return
 	}
@@ -1012,10 +1081,18 @@ func (s *Server) UpdatePost(c *gin.Context) {
 	})
 	views, err := s.buildPostViews([]model.Post{post})
 	if err != nil || len(views) == 0 {
+		setPostETag(c, post)
 		c.JSON(http.StatusOK, gin.H{"post": post})
 		return
 	}
+	setPostETag(c, post)
 	c.JSON(http.StatusOK, gin.H{"post": views[0]})
+}
+
+func setPostETag(c *gin.Context, post model.Post) {
+	if post.UpdatedAt > 0 {
+		c.Header("ETag", strconv.Quote(strconv.FormatInt(post.UpdatedAt, 10)))
+	}
 }
 
 func (s *Server) JoinPost(c *gin.Context) {
@@ -1024,13 +1101,20 @@ func (s *Server) JoinPost(c *gin.Context) {
 	now := time.Now().UnixMilli()
 
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var post model.Post
+		if err := tx.First(&post, "id = ?", postID).Error; err != nil {
+			return err
+		}
+		if post.ModerationStatus != "" && post.ModerationStatus != model.ModerationApproved {
+			return errJoinPostPending
+		}
 		_, err := s.joinPostTx(tx, postID, userID, now)
 		return err
 	})
 
 	if err != nil {
 		switch {
-		case errors.Is(err, errJoinAuthorOwnPost), errors.Is(err, errJoinPostClosed):
+		case errors.Is(err, errJoinAuthorOwnPost), errors.Is(err, errJoinPostClosed), errors.Is(err, errJoinPostPending):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, errJoinPostFull):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -338,12 +339,17 @@ func (s *Server) ResolveAdminCase(c *gin.Context) {
 				"resolver_user_id": adminUserID,
 				"resolution":       resolution,
 				"resolution_note":  strings.TrimSpace(req.Note),
+				"decision":         resolution,
+				"decision_reason":  strings.TrimSpace(req.Note),
 				"resolved_at":      now,
 				"updated_at":       now,
 			}).Error; err != nil {
 			return err
 		}
-
+		payload, _ := json.Marshal(req)
+		if err := tx.Create(&model.CaseEvent{CaseID: item.ID, EventType: "decision_made", ActorID: adminUserID, Payload: string(payload), CreatedAt: now}).Error; err != nil {
+			return err
+		}
 		return score.RecalculatePostActivityScoresTx(tx, post, now)
 	})
 	if err != nil {

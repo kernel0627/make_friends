@@ -21,6 +21,7 @@
 - `internal/model`：数据模型
 - `internal/score`：活动分、评分、信誉分回算逻辑
 - `recommender/`：推荐 worker 代码
+- `../docs/BACKEND-MODERATION-CASES.md`：活动审核与统一案件说明
 
 ## 官方启动方式
 
@@ -50,6 +51,8 @@ go run ./cmd/server
 .\status-all.bat
 .\stop-all.bat
 ```
+
+如果 `USE_REDIS=true` 且 Redis 可用，后端进程会自动启动 outbox 投递和 moderation consumer。
 
 ## 常用环境变量
 

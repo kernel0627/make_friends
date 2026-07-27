@@ -32,7 +32,8 @@ func main() {
 		log.Fatalf("init db failed: %v", err)
 	}
 
-	router := api.NewRouter(database)
+	serverRuntime := api.NewServer(database)
+	router := api.NewRouterWithServer(serverRuntime)
 	addr := envOrDefault("BACKEND_ADDR", ":8080")
 	server := &http.Server{
 		Addr:              addr,
@@ -44,6 +45,9 @@ func main() {
 	}
 
 	serverErr := make(chan error, 1)
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
+	serverRuntime.StartModerationWorkers(workerCtx)
 	go func() {
 		log.Printf("backend listening on %s", addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -61,6 +65,7 @@ func main() {
 		log.Fatalf("server run failed: %v", err)
 	case sig := <-stop:
 		log.Printf("received %s, shutting down", sig)
+		cancelWorkers()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
