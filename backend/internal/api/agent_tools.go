@@ -48,15 +48,30 @@ func RegisterAgentRoutes(r *gin.Engine, s *Server) {
 	g := r.Group("/internal/agent")
 	g.Use(RequireAgentSecret())
 	{
+		// Case basics
 		g.GET("/case/:id", s.agentGetCase)
 		g.GET("/case/:id/context", s.agentGetCaseContext)
 		g.GET("/case/:id/events", s.agentGetDomainEvents)
 		g.GET("/case/:id/messages", s.agentGetChatMessages)
+		// Evidence layer
+		g.GET("/case/:id/reports", s.agentGetReports)
+		g.GET("/case/:id/evidence", s.agentGetCaseEvidence)
+		g.GET("/case/:id/decisions", s.agentGetCaseDecisions)
+		g.GET("/case/:id/snapshots", s.agentGetContentSnapshots)
+		g.GET("/case/:id/notifications", s.agentGetNotifications)
+		g.GET("/case/:id/settlements", s.agentGetSettlements)
+		g.GET("/case/:id/credit-ledger", s.agentGetCreditLedger)
+		// User
 		g.GET("/user/:id/profile", s.agentGetUserProfile)
 		g.GET("/user/:id/history", s.agentGetUserHistory)
+		// Policy lookup
+		g.GET("/policy/:id", s.agentGetPolicy)
+		// Write (run tracking)
 		g.POST("/run", s.agentCreateRun)
 		g.PATCH("/run/:id", s.agentUpdateRun)
 		g.POST("/run/:id/step", s.agentCreateStep)
+		// Evidence write (agent can link evidence to case)
+		g.POST("/case/:id/evidence", s.agentAddEvidence)
 	}
 }
 
@@ -179,6 +194,166 @@ func (s *Server) agentGetUserHistory(c *gin.Context) {
 		"participations": participations,
 		"cases":          cases,
 	})
+}
+
+// --- Evidence layer read endpoints ---
+
+func (s *Server) agentGetReports(c *gin.Context) {
+	caseID := c.Param("id")
+	var reports []model.Report
+	_ = s.DB.Where("case_id = ?", caseID).Order("created_at ASC").Find(&reports).Error
+	c.JSON(http.StatusOK, gin.H{"reports": reports})
+}
+
+func (s *Server) agentGetCaseEvidence(c *gin.Context) {
+	caseID := c.Param("id")
+	var evidence []model.CaseEvidence
+	_ = s.DB.Where("case_id = ?", caseID).Order("created_at ASC").Find(&evidence).Error
+	c.JSON(http.StatusOK, gin.H{"evidence": evidence})
+}
+
+func (s *Server) agentGetCaseDecisions(c *gin.Context) {
+	caseID := c.Param("id")
+	var decisions []model.CaseDecision
+	_ = s.DB.Where("case_id = ?", caseID).Order("created_at ASC").Find(&decisions).Error
+	c.JSON(http.StatusOK, gin.H{"decisions": decisions})
+}
+
+func (s *Server) agentGetContentSnapshots(c *gin.Context) {
+	caseID := c.Param("id")
+	// Get post ID from case
+	var item model.AdminCase
+	if err := s.DB.First(&item, "id = ?", caseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
+			return
+		}
+		serverError(c, err)
+		return
+	}
+	var snapshots []model.ContentSnapshot
+	if item.PostID != "" {
+		_ = s.DB.Where("post_id = ?", item.PostID).Order("snapshot_at ASC").Find(&snapshots).Error
+	}
+	c.JSON(http.StatusOK, gin.H{"snapshots": snapshots})
+}
+
+func (s *Server) agentGetNotifications(c *gin.Context) {
+	caseID := c.Param("id")
+	var item model.AdminCase
+	if err := s.DB.First(&item, "id = ?", caseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
+			return
+		}
+		serverError(c, err)
+		return
+	}
+	var notifications []model.Notification
+	if item.PostID != "" {
+		_ = s.DB.Where("post_id = ?", item.PostID).Order("created_at ASC").Find(&notifications).Error
+	}
+	c.JSON(http.StatusOK, gin.H{"notifications": notifications})
+}
+
+func (s *Server) agentGetSettlements(c *gin.Context) {
+	caseID := c.Param("id")
+	var item model.AdminCase
+	if err := s.DB.First(&item, "id = ?", caseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
+			return
+		}
+		serverError(c, err)
+		return
+	}
+	var settlements []model.PostParticipantSettlement
+	if item.PostID != "" {
+		_ = s.DB.Where("post_id = ?", item.PostID).Order("created_at ASC").Find(&settlements).Error
+	}
+	c.JSON(http.StatusOK, gin.H{"settlements": settlements})
+}
+
+func (s *Server) agentGetCreditLedger(c *gin.Context) {
+	caseID := c.Param("id")
+	var item model.AdminCase
+	if err := s.DB.First(&item, "id = ?", caseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
+			return
+		}
+		serverError(c, err)
+		return
+	}
+	var ledgers []model.CreditLedger
+	if item.PostID != "" {
+		_ = s.DB.Where("post_id = ?", item.PostID).Order("created_at ASC").Find(&ledgers).Error
+	}
+	c.JSON(http.StatusOK, gin.H{"ledgers": ledgers})
+}
+
+func (s *Server) agentGetPolicy(c *gin.Context) {
+	policyID := c.Param("id")
+	// Policies are YAML files under agent/policies/<id>.yaml
+	// We serve them as raw text for the agent to parse.
+	policyDir := envStr("AGENT_POLICY_DIR", "")
+	if policyDir == "" {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "AGENT_POLICY_DIR not configured"})
+		return
+	}
+	path := policyDir + "/" + policyID + ".yaml"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "policy not found", "id": policyID})
+			return
+		}
+		serverError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, "text/yaml", data)
+}
+
+// --- Evidence write (agent links evidence to case) ---
+
+type addEvidenceReq struct {
+	EvidenceType string `json:"evidenceType" binding:"required"`
+	EvidenceID   string `json:"evidenceId" binding:"required"`
+	Relevance    string `json:"relevance"`
+	Note         string `json:"note"`
+	RunID        string `json:"runId"`
+}
+
+func (s *Server) agentAddEvidence(c *gin.Context) {
+	caseID := c.Param("id")
+	var req addEvidenceReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	relevance := req.Relevance
+	if relevance == "" {
+		relevance = "supporting"
+	}
+	addedBy := "agent"
+	if req.RunID != "" {
+		addedBy = "agent:" + req.RunID
+	}
+	now := time.Now().UnixMilli()
+	evidence := model.CaseEvidence{
+		CaseID:       caseID,
+		EvidenceType: req.EvidenceType,
+		EvidenceID:   req.EvidenceID,
+		AddedBy:      addedBy,
+		Relevance:    relevance,
+		Note:         req.Note,
+		CreatedAt:    now,
+	}
+	if err := s.DB.Create(&evidence).Error; err != nil {
+		serverError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, evidence)
 }
 
 // --- Write endpoints (agent run tracking) ---

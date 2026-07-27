@@ -34,10 +34,16 @@ EXTRACT_CLAIMS_SYSTEM = """你是一个案件调查分析员。你的任务是�
 INVESTIGATE_SYSTEM = """你是一个案件调查员。根据当前掌握的证据和待验证的主张，决定下一步应该使用哪个调查工具。
 
 可用工具:
-- get_domain_events: 获取案件相关的领域事件时间线
+- get_domain_events: 获取案件相关的领域事件时间线（帖子创建、修改、参与、结算等）
 - get_chat_messages: 获取活动群聊记录
 - get_user_profile: 获取目标用户的基本信息和信用分
 - get_user_history: 获取用户的历史活动和案件记录
+- get_content_snapshots: 获取帖子内容的历史快照（内容修改前后对比）
+- get_notifications: 获取活动相关的通知记录（谁收到了通知、是否已读）
+- get_settlements: 获取活动的结算/确认记录
+- get_credit_ledger: 获取信用分变动记录
+- get_reports: 获取关联的举报记录
+- get_policy: 获取相关政策内容（需指定policy_id: content_commercial / content_off_platform / settlement_no_show / settlement_material_change / credit_reversal）
 - done: 证据已充分，可以进入评估阶段
 
 根据以下信息决定下一步:
@@ -46,8 +52,9 @@ INVESTIGATE_SYSTEM = """你是一个案件调查员。根据当前掌握的证�
 3. 哪个工具最可能提供有用信息
 
 返回JSON格式:
-{"action": "tool_name", "reasoning": "选择这个工具的原因"}
+{"action": "tool_name", "params": {"key": "value"}, "reasoning": "选择这个工具的原因"}
 
+params是可选的，仅在需要指定参数时使用（如get_policy需要policy_id，get_user_profile需要user_id）。
 只返回JSON，不要其他文字。"""
 
 EVALUATE_SYSTEM = """你是一个案件裁决分析员。根据收集到的所有证据，对案件做出评估。
@@ -57,15 +64,21 @@ EVALUATE_SYSTEM = """你是一个案件裁决分析员。根据收集到的所�
 - unsupported: 证据不支持该主张
 - inconclusive: 证据不足以做出判断
 
-然后给出案件整体裁决:
-- supported: 举报/申诉有充分依据
-- unsupported: 举报/申诉缺乏依据
-- inconclusive: 证据不足，需要人工进一步审查
+然后给出案件整体裁决（outcome）:
+- upheld: 举报/申诉成立，应支持举报方/申诉方
+- rejected: 举报/申诉不成立，应驳回
+- insufficient_evidence: 证据不足，需要人工进一步审查
+
+同时指出:
+- responsible_party: 责任方是谁（如果有的话）
+- policy_violations: 违反了哪些政策（如果有的话）
 
 返回JSON格式:
 {
   "claim_evaluations": [{"id": "claim_1", "status": "supported|unsupported|inconclusive", "reasoning": "..."}],
-  "verdict": "supported|unsupported|inconclusive",
+  "outcome": "upheld|rejected|insufficient_evidence",
+  "responsible_party": "author|participant|reporter|none",
+  "policy_violations": ["policy_id_1"],
   "confidence": 0.0-1.0,
   "key_findings": ["关键发现1", "关键发现2"]
 }
@@ -176,12 +189,14 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
             f"待验证主张:\n{claims_str}\n\n"
             f"已收集证据:\n{evidence_str}\n\n"
             f"已执行步骤数: {step_count}/{config.max_steps}\n"
+            f"案件类型: {case_data.get('caseType', '')}\n"
             f"请决定下一步行动。"
         ),
     )
 
     action = result.get("action", "done")
     reasoning = result.get("reasoning", "")
+    params = result.get("params", {})
 
     if action == "done":
         steps.append({"stepIndex": step_count, "action": "done", "latencyMs": 0, "reasoning": reasoning})
@@ -198,15 +213,35 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
             data = client.get_chat_messages(case_id)
             evidence.append({"type": "chat_messages", "data": data})
         elif action == "get_user_profile":
-            target_id = case_data.get("targetUserId", "")
+            target_id = params.get("user_id") or case_data.get("targetUserId", "")
             if target_id:
                 data = client.get_user_profile(target_id)
                 evidence.append({"type": "user_profile", "data": data})
         elif action == "get_user_history":
-            target_id = case_data.get("targetUserId", "")
+            target_id = params.get("user_id") or case_data.get("targetUserId", "")
             if target_id:
                 data = client.get_user_history(target_id)
                 evidence.append({"type": "user_history", "data": data})
+        elif action == "get_content_snapshots":
+            data = client.get_content_snapshots(case_id)
+            evidence.append({"type": "content_snapshots", "data": data})
+        elif action == "get_notifications":
+            data = client.get_notifications(case_id)
+            evidence.append({"type": "notifications", "data": data})
+        elif action == "get_settlements":
+            data = client.get_settlements(case_id)
+            evidence.append({"type": "settlements", "data": data})
+        elif action == "get_credit_ledger":
+            data = client.get_credit_ledger(case_id)
+            evidence.append({"type": "credit_ledger", "data": data})
+        elif action == "get_reports":
+            data = client.get_reports(case_id)
+            evidence.append({"type": "reports", "data": data})
+        elif action == "get_policy":
+            policy_id = params.get("policy_id", "")
+            if policy_id:
+                data = client.get_policy(policy_id)
+                evidence.append({"type": f"policy:{policy_id}", "data": data})
         else:
             logger.warning(f"Unknown action: {action}, treating as done")
             action = "done"
@@ -256,15 +291,27 @@ def evaluate_llm(state: dict[str, Any], config: Config | None = None) -> dict[st
         ),
     )
 
-    verdict = result.get("verdict", "inconclusive")
-    if verdict not in ("supported", "unsupported", "inconclusive"):
-        verdict = "inconclusive"
+    verdict = result.get("outcome", result.get("verdict", "insufficient_evidence"))
+    if verdict not in ("upheld", "rejected", "insufficient_evidence"):
+        # Map old format to new
+        if verdict == "supported":
+            verdict = "upheld"
+        elif verdict == "unsupported":
+            verdict = "rejected"
+        elif verdict == "inconclusive":
+            verdict = "insufficient_evidence"
+        else:
+            verdict = "insufficient_evidence"
     confidence = float(result.get("confidence", 0.5))
     key_findings = result.get("key_findings", [])
+    responsible_party = result.get("responsible_party", "")
+    policy_violations = result.get("policy_violations", [])
 
     return {
         "verdict": verdict,
         "confidence": min(max(confidence, 0.0), 1.0),
+        "responsible_party": responsible_party,
+        "policy_violations": policy_violations,
         "_key_findings": key_findings,
     }
 

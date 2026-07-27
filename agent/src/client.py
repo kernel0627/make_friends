@@ -48,6 +48,62 @@ class BackendClient:
         r.raise_for_status()
         return r.json()
 
+    # --- Evidence layer tools ---
+
+    def get_reports(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/reports")
+        r.raise_for_status()
+        return r.json().get("reports", [])
+
+    def get_case_evidence(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/evidence")
+        r.raise_for_status()
+        return r.json().get("evidence", [])
+
+    def get_case_decisions(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/decisions")
+        r.raise_for_status()
+        return r.json().get("decisions", [])
+
+    def get_content_snapshots(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/snapshots")
+        r.raise_for_status()
+        return r.json().get("snapshots", [])
+
+    def get_notifications(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/notifications")
+        r.raise_for_status()
+        return r.json().get("notifications", [])
+
+    def get_settlements(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/settlements")
+        r.raise_for_status()
+        return r.json().get("settlements", [])
+
+    def get_credit_ledger(self, case_id: str) -> list[dict[str, Any]]:
+        r = self._client.get(f"/internal/agent/case/{case_id}/credit-ledger")
+        r.raise_for_status()
+        return r.json().get("ledgers", [])
+
+    def get_policy(self, policy_id: str) -> str:
+        """Returns the raw YAML content of a policy file."""
+        r = self._client.get(f"/internal/agent/policy/{policy_id}")
+        r.raise_for_status()
+        return r.text
+
+    def add_evidence(self, case_id: str, evidence_type: str, evidence_id: str,
+                     relevance: str = "supporting", note: str = "", run_id: str = "") -> dict[str, Any]:
+        payload = {
+            "evidenceType": evidence_type,
+            "evidenceId": evidence_id,
+            "relevance": relevance,
+            "note": note,
+            "runId": run_id,
+        }
+        r = self._client.post(f"/internal/agent/case/{case_id}/evidence", json=payload)
+        r.raise_for_status()
+        return r.json()
+
     # --- Write tools (run tracking) ---
 
     def create_run(self, case_id: str, model: str) -> dict[str, Any]:
