@@ -1,0 +1,190 @@
+[
+  {
+    "scenario_id": "content_commercial_01",
+    "case_type": "content_report",
+    "difficulty": "easy",
+    "expected_outcome": "upheld",
+    "responsible_party": "author",
+    "policy_refs": [
+      "content_commercial"
+    ],
+    "required_evidence": [
+      "content_snapshot",
+      "chat_commercial_link"
+    ],
+    "forbidden_claims": [
+      "insufficient_evidence"
+    ]
+  },
+  {
+    "scenario_id": "content_offplatform_legit_01",
+    "case_type": "content_report",
+    "difficulty": "medium",
+    "expected_outcome": "rejected",
+    "responsible_party": "",
+    "policy_refs": [
+      "content_off_platform"
+    ],
+    "required_evidence": [
+      "chat_context",
+      "post_content"
+    ],
+    "forbidden_claims": [
+      "commercial_activity",
+      "policy_violation"
+    ]
+  },
+  {
+    "scenario_id": "content_report_false_01",
+    "case_type": "content_report",
+    "difficulty": "easy",
+    "expected_outcome": "rejected",
+    "responsible_party": "",
+    "policy_refs": [
+      "content_commercial",
+      "content_off_platform"
+    ],
+    "required_evidence": [
+      "post_content",
+      "chat_messages"
+    ],
+    "forbidden_claims": [
+      "policy_violation",
+      "commercial_activity",
+      "inappropriate_content"
+    ]
+  },
+  {
+    "scenario_id": "settlement_noshow_clear_01",
+    "case_type": "settlement_dispute",
+    "difficulty": "easy",
+    "expected_outcome": "upheld",
+    "responsible_party": "participant_1",
+    "policy_refs": [
+      "settlement_no_show"
+    ],
+    "required_evidence": [
+      "no_cancel_record",
+      "no_chat_day_of",
+      "settlement_dispute"
+    ],
+    "forbidden_claims": [
+      "author_fault",
+      "material_change"
+    ]
+  },
+  {
+    "scenario_id": "settlement_material_change_01",
+    "case_type": "settlement_dispute",
+    "difficulty": "medium",
+    "expected_outcome": "upheld",
+    "responsible_party": "author",
+    "policy_refs": [
+      "settlement_material_change"
+    ],
+    "required_evidence": [
+      "content_snapshot_before",
+      "content_snapshot_after",
+      "domain_event_update",
+      "notification_status"
+    ],
+    "forbidden_claims": [
+      "participant_no_show",
+      "participant_fault"
+    ]
+  },
+  {
+    "scenario_id": "settlement_ambiguous_01",
+    "case_type": "settlement_dispute",
+    "difficulty": "hard",
+    "expected_outcome": "rejected",
+    "responsible_party": "",
+    "policy_refs": [
+      "settlement_material_change"
+    ],
+    "required_evidence": [
+      "content_snapshot_before",
+      "content_snapshot_after",
+      "chat_acknowledgment"
+    ],
+    "forbidden_claims": [
+      "material_change"
+    ]
+  },
+  {
+    "scenario_id": "moderation_appeal_legit_01",
+    "case_type": "moderation_appeal",
+    "difficulty": "medium",
+    "expected_outcome": "upheld",
+    "responsible_party": "",
+    "policy_refs": [
+      "content_commercial"
+    ],
+    "required_evidence": [
+      "moderation_record",
+      "content_snapshot",
+      "user_history"
+    ],
+    "forbidden_claims": [
+      "commercial_intent",
+      "policy_violation"
+    ]
+  },
+  {
+    "scenario_id": "moderation_appeal_guilty_01",
+    "case_type": "moderation_appeal",
+    "difficulty": "medium",
+    "expected_outcome": "rejected",
+    "responsible_party": "author",
+    "policy_refs": [
+      "content_off_platform"
+    ],
+    "required_evidence": [
+      "content_snapshot",
+      "moderation_record"
+    ],
+    "forbidden_claims": [
+      "false_positive",
+      "system_error"
+    ]
+  },
+  {
+    "scenario_id": "credit_appeal_noshow_01",
+    "case_type": "credit_appeal",
+    "difficulty": "medium",
+    "expected_outcome": "upheld",
+    "responsible_party": "",
+    "policy_refs": [
+      "settlement_no_show",
+      "credit_reversal"
+    ],
+    "required_evidence": [
+      "chat_advance_notice",
+      "credit_ledger_entry",
+      "no_cancel_by_author"
+    ],
+    "forbidden_claims": [
+      "no_notice_given"
+    ]
+  },
+  {
+    "scenario_id": "credit_appeal_unfounded_01",
+    "case_type": "credit_appeal",
+    "difficulty": "easy",
+    "expected_outcome": "rejected",
+    "responsible_party": "appellant",
+    "policy_refs": [
+      "settlement_no_show",
+      "credit_reversal"
+    ],
+    "required_evidence": [
+      "credit_ledger_entry",
+      "no_advance_notice",
+      "settlement_record"
+    ],
+    "forbidden_claims": [
+      "system_error",
+      "advance_notice_given"
+    ]
+  }
+]

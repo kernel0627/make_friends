@@ -23,3 +23,5 @@ server.out
 *.pid
 *.test
 coverage.out
+seed-scenarios
+export-golden
