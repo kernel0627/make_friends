@@ -10,6 +10,7 @@
 - 邀请日历、活动日历、站内消息和活动群聊
 - WebSocket 实时消息与 SQLite 消息持久化
 - 履约结算、互评、活动分和信誉积分流水
+- 内容审核与统一案件处理
 - DeepSeek 智能活动草稿
 - 推荐曝光、点击、用户标签、向量召回和排序模型
 - 用户、活动、审核案例、评价、积分和管理员账号管理
@@ -56,6 +57,7 @@ make_friends/
 ├── admin-web/                 React 管理后台
 ├── backend-model/             本地向量模型目录（仅提交说明文件）
 ├── docs/                      数据库、智能发布和仓库规范文档
+│   └── BACKEND-MODERATION-CASES.md  后端审核与案件链路说明
 ├── scripts/                   Windows PowerShell 编排脚本
 └── start-*.bat / stop-*.bat   Windows 快捷入口
 ```
