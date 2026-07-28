@@ -140,6 +140,9 @@ func isAutoApproveEligible(d model.CaseDecision, cfg autoApproveConfig) (bool, s
 			if d.Confidence < 0.90 {
 				return false, "post_takedown requires confidence >= 0.90"
 			}
+		case "suspend_user", "ban_user":
+			// User suspension/ban always requires human review
+			return false, action + " requires manual review"
 		}
 	}
 

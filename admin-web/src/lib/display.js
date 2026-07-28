@@ -143,6 +143,8 @@ export const ACTION_LABELS = {
   credit_restore: "恢复信誉分",
   post_takedown: "下架帖子",
   post_restore: "恢复帖子",
+  suspend_user: "暂停账号",
+  ban_user: "永久封禁",
 };
 
 export function getDecisionOutcomeLabel(value) {
