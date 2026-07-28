@@ -117,6 +117,9 @@ class BackendClient:
     def create_decision(self, case_id: str, outcome: str, reasoning: str = "",
                         evidence_refs: list[str] | None = None,
                         actions: list[dict[str, Any]] | None = None,
+                        responsible_party: str = "",
+                        policy_refs: list[str] | None = None,
+                        confidence: float = 0.0,
                         run_id: str = "") -> dict[str, Any]:
         """Record the agent's proposed verdict as a CaseDecision (status=proposed)."""
         payload = {
@@ -124,6 +127,9 @@ class BackendClient:
             "reasoning": reasoning,
             "evidenceRefs": evidence_refs or [],
             "actions": actions or [],
+            "responsibleParty": responsible_party,
+            "policyRefs": policy_refs or [],
+            "confidence": confidence,
             "runId": run_id,
         }
         r = self._client.post(f"/internal/agent/case/{case_id}/decision", json=payload)
@@ -145,20 +151,6 @@ class BackendClient:
     def create_step(self, run_id: str, step_index: int, action: str, **kwargs) -> dict[str, Any]:
         payload = {"stepIndex": step_index, "action": action, **kwargs}
         r = self._client.post(f"/internal/agent/run/{run_id}/step", json=payload)
-        r.raise_for_status()
-        return r.json()
-
-    def execute_action(self, case_id: str, action: str, run_id: str = "",
-                       target_id: str = "", amount: int = 0, reason: str = "") -> dict[str, Any]:
-        """Execute a remediation action (credit_deduct, credit_restore, post_restore, post_takedown)."""
-        payload = {
-            "action": action,
-            "targetId": target_id,
-            "amount": amount,
-            "reason": reason,
-            "runId": run_id,
-        }
-        r = self._client.post(f"/internal/agent/case/{case_id}/execute-action", json=payload)
         r.raise_for_status()
         return r.json()
 

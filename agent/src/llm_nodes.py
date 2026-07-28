@@ -121,6 +121,13 @@ SUMMARIZE_SYSTEM = """你是一个证据摘要分析员。你需要将大量的�
 2. 矛盾点或异常
 3. 与案件主张的相关性
 
+重要：必须保留所有精确数据，包括：
+- 具体时间戳（精确到分钟）
+- 金额数字
+- 用户ID
+- 帖子/消息ID
+- 状态变更的先后顺序
+
 保持客观，不做判断。用简洁的中文输出。"""
 
 
@@ -417,7 +424,7 @@ def report_llm(state: dict[str, Any], config: Config | None = None) -> dict[str,
 
 # --- Evidence Summarization ---
 
-_EVIDENCE_CHAR_THRESHOLD = 8000  # Summarize if total evidence exceeds this
+_EVIDENCE_CHAR_THRESHOLD = 16000  # Summarize if total evidence exceeds this
 
 
 def _evidence_total_chars(evidence: list[dict]) -> int:

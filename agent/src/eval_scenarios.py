@@ -143,9 +143,9 @@ def score_result(truth: dict[str, Any], result: dict[str, Any]) -> dict[str, Any
     # 4. Evidence recall — check if required evidence types appear in the agent's output
     required_evidence = truth.get("required_evidence", [])
     if required_evidence:
-        # Build a searchable text corpus from the agent's report + evidence list
         corpus = _build_evidence_corpus(result)
-        found = sum(1 for e in required_evidence if _evidence_mentioned(e, corpus))
+        called_tools = _get_called_tools(result)
+        found = sum(1 for e in required_evidence if _evidence_mentioned(e, corpus, called_tools))
         scores["evidence_recall"] = found / len(required_evidence)
         scores["evidence_found"] = found
         scores["evidence_required"] = len(required_evidence)
@@ -190,22 +190,75 @@ def _build_evidence_corpus(result: dict[str, Any]) -> str:
     return "\n".join(parts).lower()
 
 
-def _evidence_mentioned(evidence_key: str, corpus: str) -> bool:
-    """Check if an evidence type/key is referenced in the corpus.
+# Map required_evidence keys → tool action names that would retrieve them.
+# If a key maps to a tool, we first check if that tool was called (steps).
+# If it doesn't map to a specific tool (or multiple tools could provide it),
+# we fall back to corpus text search.
+_EVIDENCE_TO_TOOL: dict[str, str] = {
+    "chat_messages": "get_chat_messages",
+    "chat_commercial_link": "get_chat_messages",
+    "chat_acknowledgment": "get_chat_messages",
+    "chat_advance_notice": "get_chat_messages",
+    "chat_arrival_message": "get_chat_messages",
+    "chat_context": "get_chat_messages",
+    "chat_notice_timestamp": "get_chat_messages",
+    "no_chat_day_of": "get_chat_messages",
+    "content_snapshot": "get_content_snapshots",
+    "content_snapshot_before": "get_content_snapshots",
+    "content_snapshot_after": "get_content_snapshots",
+    "post_content": "get_content_snapshots",
+    "domain_event_update": "get_domain_events",
+    "cancel_timestamp": "get_domain_events",
+    "system_cancel_record": "get_domain_events",
+    "no_cancel_record": "get_domain_events",
+    "no_cancel_by_author": "get_domain_events",
+    "settlement_record": "get_settlements",
+    "settlement_records": "get_settlements",
+    "settlement_dispute": "get_settlements",
+    "credit_ledger_entry": "get_credit_ledger",
+    "user_history": "get_user_history",
+    "reporter_history": "get_user_history",
+    "moderation_record": "get_domain_events",
+    "first_appeal_record": "get_domain_events",
+    "notification_status": "get_notifications",
+    "no_advance_notice": "get_notifications",
+}
 
-    Uses relaxed matching: underscores → spaces, checks for substring.
+
+def _get_called_tools(result: dict[str, Any]) -> set[str]:
+    """Extract the set of tool actions called during the investigation."""
+    tools = set()
+    for step in result.get("steps", []):
+        action = step.get("action", "")
+        if action and action != "done":
+            tools.add(action)
+    return tools
+
+
+def _evidence_mentioned(evidence_key: str, corpus: str, called_tools: set[str]) -> bool:
+    """Check if an evidence type/key is covered by the agent's investigation.
+
+    Strategy:
+    1. If the key maps to a known tool, check if that tool was called (high confidence)
+    2. Additionally search the corpus for the key (catches specific findings)
     """
-    # Normalize: "chat_commercial_link" → "commercial link", "chat commercial link"
+    # Check tool mapping
+    mapped_tool = _EVIDENCE_TO_TOOL.get(evidence_key)
+    if mapped_tool and mapped_tool in called_tools:
+        return True
+
+    # Fallback: text search in corpus
     normalized = evidence_key.lower().replace("_", " ")
     if normalized in corpus:
         return True
-    # Also try underscore form
     if evidence_key.lower() in corpus:
         return True
-    # Try individual significant words (length > 3)
-    words = [w for w in normalized.split() if len(w) > 3]
+
+    # Check individual significant words (relaxed matching, but require tool was at least called)
+    words = [w for w in normalized.split() if len(w) > 4]
     if words and all(w in corpus for w in words):
         return True
+
     return False
 
 

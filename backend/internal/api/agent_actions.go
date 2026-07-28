@@ -2,96 +2,26 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
 	"make_friends/backend/internal/model"
 	"make_friends/backend/internal/score"
 )
 
-// ---------- Agent Action Execution ----------
-// Endpoints that allow the agent to execute remediation actions
-// after producing a verdict.
+// ---------- Action Execution Helpers ----------
+// These functions execute remediation actions. They are called by the admin
+// approval endpoint (admin_approve.go) after an admin approves a proposed decision.
+// The agent itself cannot execute actions directly (safety contract).
 
+// agentExecuteActionReq is the internal parameter struct for action execution helpers.
 type agentExecuteActionReq struct {
-	Action   string `json:"action" binding:"required"` // credit_deduct, credit_restore, post_restore, post_takedown
-	TargetID string `json:"targetId"`                  // user_id for credit actions, post_id for post actions
-	Amount   int    `json:"amount"`                    // for credit actions
-	Reason   string `json:"reason"`
-	RunID    string `json:"runId"`
-}
-
-// RegisterAgentActionRoutes adds action endpoints to the agent route group.
-// Called from RegisterAgentRoutes.
-func registerAgentActionRoutes(g *gin.RouterGroup, s *Server) {
-	g.POST("/case/:id/execute-action", s.agentExecuteAction)
-}
-
-func (s *Server) agentExecuteAction(c *gin.Context) {
-	caseID := c.Param("id")
-	var req agentExecuteActionReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate case exists
-	var adminCase model.AdminCase
-	if err := s.DB.First(&adminCase, "id = ?", caseID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
-			return
-		}
-		serverError(c, err)
-		return
-	}
-
-	now := time.Now().UnixMilli()
-	operatorID := "agent:" + req.RunID
-
-	switch req.Action {
-	case "credit_deduct":
-		err := s.executeCredtDeduct(adminCase, req, operatorID, now)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	case "credit_restore":
-		err := s.executeCreditRestore(adminCase, req, operatorID, now)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	case "post_restore":
-		err := s.executePostRestore(adminCase, req, operatorID, now)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	case "post_takedown":
-		err := s.executePostTakedown(adminCase, req, operatorID, now)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("unknown action: %s", req.Action)})
-		return
-	}
-
-	// Record the action as a domain event
-	emitDomainEvent(s.DB, "agent.action_executed", "case", caseID, operatorID,
-		map[string]string{"action": req.Action, "targetId": req.TargetID, "reason": req.Reason})
-
-	c.JSON(http.StatusOK, gin.H{
-		"ok":     true,
-		"action": req.Action,
-		"caseId": caseID,
-	})
+	Action   string // credit_deduct, credit_restore, post_restore, post_takedown
+	TargetID string // user_id for credit actions, post_id for post actions
+	Amount   int    // for credit actions
+	Reason   string
+	RunID    string
 }
 
 func (s *Server) executeCredtDeduct(adminCase model.AdminCase, req agentExecuteActionReq, operatorID string, now int64) error {

@@ -77,8 +77,8 @@ func RegisterAgentRoutes(r *gin.Engine, s *Server) {
 		g.POST("/case/:id/evidence", s.agentAddEvidence)
 		// Decision write (agent records its verdict)
 		g.POST("/case/:id/decision", s.agentCreateDecision)
-		// Action execution (agent executes remediation)
-		registerAgentActionRoutes(g, s)
+		// Case status update (worker rollback on failure)
+		g.PATCH("/case/:id/status", s.agentUpdateCaseStatus)
 	}
 }
 
@@ -384,11 +384,14 @@ func (s *Server) agentAddEvidence(c *gin.Context) {
 // --- Decision write (agent records verdict) ---
 
 type createDecisionReq struct {
-	Outcome      string   `json:"outcome" binding:"required"`
-	Reasoning    string   `json:"reasoning"`
-	EvidenceRefs []string `json:"evidenceRefs"`
-	Actions      []string `json:"actions"`
-	RunID        string   `json:"runId"`
+	Outcome          string   `json:"outcome" binding:"required"`
+	Reasoning        string   `json:"reasoning"`
+	EvidenceRefs     []string `json:"evidenceRefs"`
+	Actions          []any    `json:"actions"`
+	ResponsibleParty string   `json:"responsibleParty"`
+	PolicyRefs       []string `json:"policyRefs"`
+	Confidence       float64  `json:"confidence"`
+	RunID            string   `json:"runId"`
 }
 
 func (s *Server) agentCreateDecision(c *gin.Context) {
@@ -406,6 +409,7 @@ func (s *Server) agentCreateDecision(c *gin.Context) {
 
 	evidenceJSON, _ := json.Marshal(req.EvidenceRefs)
 	actionsJSON, _ := json.Marshal(req.Actions)
+	policyJSON, _ := json.Marshal(req.PolicyRefs)
 
 	// Idempotency: one decision per (case, run) pair
 	idempotencyKey := caseID + ":" + req.RunID
@@ -415,16 +419,19 @@ func (s *Server) agentCreateDecision(c *gin.Context) {
 
 	now := time.Now().UnixMilli()
 	decision := model.CaseDecision{
-		CaseID:         caseID,
-		DeciderID:      deciderID,
-		DecisionType:   "initial",
-		Outcome:        req.Outcome,
-		Reasoning:      req.Reasoning,
-		EvidenceRefs:   string(evidenceJSON),
-		Actions:        string(actionsJSON),
-		Status:         model.DecisionStatusProposed,
-		IdempotencyKey: idempotencyKey,
-		CreatedAt:      now,
+		CaseID:           caseID,
+		DeciderID:        deciderID,
+		DecisionType:     "initial",
+		Outcome:          req.Outcome,
+		Reasoning:        req.Reasoning,
+		EvidenceRefs:     string(evidenceJSON),
+		Actions:          string(actionsJSON),
+		ResponsibleParty: req.ResponsibleParty,
+		PolicyRefs:       string(policyJSON),
+		Confidence:       req.Confidence,
+		Status:           model.DecisionStatusProposed,
+		IdempotencyKey:   idempotencyKey,
+		CreatedAt:        now,
 	}
 
 	// Check idempotency — if this run already produced a decision, return it
@@ -568,4 +575,36 @@ func (s *Server) agentCreateStep(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, step)
+}
+
+// agentUpdateCaseStatus lets the worker roll back case status on failure.
+// PATCH /internal/agent/case/:id/status
+func (s *Server) agentUpdateCaseStatus(c *gin.Context) {
+	caseID := c.Param("id")
+	var req struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only allow safe transitions
+	allowed := map[string]bool{"open": true, "investigating": true}
+	if !allowed[req.Status] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status not allowed via this endpoint"})
+		return
+	}
+
+	result := s.DB.Model(&model.AdminCase{}).Where("id = ?", caseID).
+		Updates(map[string]any{"status": req.Status, "updated_at": time.Now().UnixMilli()})
+	if result.Error != nil {
+		serverError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "case not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "status": req.Status})
 }

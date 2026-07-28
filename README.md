@@ -24,12 +24,15 @@ flowchart LR
     API --> DB["SQLite<br/>业务数据"]
     API -->|"缓存 / Pub/Sub / Streams"| Redis["Redis"]
     Redis --> Worker["Python 推荐 Worker"]
+    Redis --> Agent["Python Agent Worker"]
     Worker --> DB
     Worker --> Model["本地向量模型<br/>backend-model"]
+    Agent -->|"调查 + 裁决"| API
     API -->|"智能发布"| DeepSeek["DeepSeek API"]
+    Agent -->|"LLM 推理"| LLM["DeepSeek API"]
 ```
 
-Redis 在项目里承担三种不同职责：接口缓存、WebSocket 房间 Pub/Sub、推荐事件与任务 Streams。Redis 未启用时，基础 HTTP 接口和 SQLite 数据仍可独立运行，但实时聊天和异步推荐链路会受限。
+Redis 在项目里承担三种不同职责：接口缓存、WebSocket 房间 Pub/Sub、推荐与 Agent 任务 Streams。Redis 未启用时，基础 HTTP 接口和 SQLite 数据仍可独立运行，但实时聊天、异步推荐和 Agent 调查链路会受限。
 
 ## 技术栈
 
@@ -41,6 +44,7 @@ Redis 在项目里承担三种不同职责：接口缓存、WebSocket 房间 Pub
 | 实时与队列 | Redis Cache、Pub/Sub、Streams、WebSocket |
 | 管理后台 | React 18、React Router、Vite 5 |
 | 推荐系统 | Python、PyTorch、Sentence Transformers、scikit-learn |
+| Agent 调查 | Python、LangGraph、Redis Streams |
 | 智能发布 | DeepSeek Chat API |
 
 ## 目录结构
@@ -54,6 +58,10 @@ make_friends/
 │   ├── recommender/           Python 推荐 worker
 │   ├── data/                  本地 SQLite 数据（不提交）
 │   └── go.mod
+├── agent/                     Python Agent 调查服务（LangGraph）
+│   ├── src/                   核心代码（graph、runner、worker、eval）
+│   ├── policies/              裁决规则 YAML
+│   └── tests/                 测试与评估数据
 ├── admin-web/                 React 管理后台
 ├── backend-model/             本地向量模型目录（仅提交说明文件）
 ├── docs/                      数据库、智能发布和仓库规范文档
@@ -244,6 +252,7 @@ PYTHONPATH=. REC_DEVICE=cpu python -m recommender.rebuild_all
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek API 地址 |
 | `DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek 模型 |
 | `SMART_POST_TIMEZONE` | `Asia/Shanghai` | 智能发布时间解析时区 |
+| `AGENT_API_SECRET` | 空 | Agent 服务与后端通信的共享密钥 |
 | `VITE_API_BASE` | `http://127.0.0.1:8080` | 管理后台 API 地址 |
 
 后端环境变量示例见 `backend/.env.example`。不要提交真实 `.env`、数据库、私钥、模型文件或第三方 API Key。
@@ -307,9 +316,16 @@ Python 推荐模块测试（只依赖 scikit-learn，不需要 torch 或 Redis�
 cd backend && python -m pytest recommender/tests -q
 ```
 
+Python Agent 测试：
+
+```bash
+conda run -n agent pytest agent/tests -q
+```
+
 ## 进一步文档
 
 - `backend/README.md`：后端入口、种子和修复命令
+- `agent/README.md`：Agent 调查服务架构与使用说明
 - `admin-web/README.md`：管理后台说明
 - `backend/recommender/README.md`：推荐 worker 说明
 - `docs/DATABASE-OVERVIEW.md`：数据库结构

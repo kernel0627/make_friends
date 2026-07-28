@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"make_friends/backend/internal/model"
@@ -19,8 +19,8 @@ import (
 // These endpoints let the admin frontend trigger agent investigations
 // and view investigation history.
 
-// Redis queue key for agent investigation tasks.
-const agentTaskQueue = "agent:tasks"
+// Redis stream key for agent investigation tasks.
+const agentTaskStream = "agent:tasks"
 
 // AgentTask is the JSON payload pushed to the Redis queue.
 type AgentTask struct {
@@ -55,6 +55,16 @@ func (s *Server) InvestigateCase(c *gin.Context) {
 		Count(&runningCount)
 	if runningCount > 0 {
 		c.JSON(http.StatusConflict, gin.H{"error": "investigation already in progress"})
+		return
+	}
+
+	// Check if there's already a proposed decision awaiting review
+	var proposedCount int64
+	s.DB.Model(&model.CaseDecision{}).
+		Where("case_id = ? AND status = ?", caseID, model.DecisionStatusProposed).
+		Count(&proposedCount)
+	if proposedCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "case already has a proposed decision awaiting review"})
 		return
 	}
 
@@ -102,18 +112,20 @@ func (s *Server) InvestigateCase(c *gin.Context) {
 	})
 }
 
-// enqueueAgentTask pushes a task to the Redis agent queue.
+// enqueueAgentTask adds a task to the Redis stream for agent consumption.
 func (s *Server) enqueueAgentTask(task AgentTask) error {
 	if !s.UseRedis || s.RedisClient == nil {
 		return errRedisNotAvailable
 	}
-	payload, err := json.Marshal(task)
-	if err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	return s.RedisClient.LPush(ctx, agentTaskQueue, payload).Err()
+	return s.RedisClient.XAdd(ctx, &redis.XAddArgs{
+		Stream: agentTaskStream,
+		Values: map[string]interface{}{
+			"caseId": task.CaseID,
+			"runId":  task.RunID,
+		},
+	}).Err()
 }
 
 var errRedisNotAvailable = &agentQueueError{msg: "Redis not available; enable USE_REDIS=true to use agent queue"}

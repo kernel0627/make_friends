@@ -82,6 +82,9 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
             reasoning=reasoning,
             run_id=run_id,
             actions=proposed_actions,
+            responsible_party=final_state.get("responsible_party", ""),
+            policy_refs=final_state.get("policy_violations", []),
+            confidence=final_state.get("confidence", 0.0),
         )
 
         # Mark completed
