@@ -8,9 +8,12 @@ type User struct {
 	PasswordHash string  `gorm:"size:255;not null;default:''" json:"-"`
 	AvatarURL    string  `gorm:"size:512;not null;default:''" json:"avatarUrl"`
 	Role         string  `gorm:"size:16;not null;default:user;index" json:"role"`
+	Status       string  `gorm:"size:16;not null;default:active;index" json:"status"` // active, suspended, banned
 	RootAdmin    bool    `gorm:"not null;default:false;index" json:"rootAdmin"`
 	CreditScore  int     `gorm:"not null;default:100" json:"creditScore"`
 	RatingScore  float64 `gorm:"not null;default:5.0" json:"ratingScore"`
+	SuspendedAt  int64   `gorm:"not null;default:0" json:"suspendedAt"`
+	SuspendUntil int64   `gorm:"not null;default:0" json:"suspendUntil"` // 0 = permanent if suspended
 	DeletedAt    int64   `gorm:"not null;default:0;index" json:"deletedAt"`
 	DeletedBy    string  `gorm:"size:64;not null;default:''" json:"deletedBy"`
 	CreatedAt    int64   `gorm:"not null" json:"createdAt"`
@@ -142,27 +145,37 @@ type CreditLedger struct {
 	UpdatedAt      int64  `gorm:"not null" json:"updatedAt"`
 }
 
+// AdminCase represents a dispute/report/appeal that needs resolution.
+//
+// Field history notes:
+//   - ReporterUserID is the canonical reporter field (used in queries + UI).
+//     ReporterID was added later for the report-sourced cases; both are set to
+//     the same value on creation. Keep both in sync until a migration unifies them.
+//   - Decision/DecisionReason store the admin's manual resolution (e.g. "no_show").
+//     This is separate from CaseDecision (agent's proposed outcome + actions).
+//   - SourceRef is a dedup key (e.g. "report:<reportID>") to prevent duplicate cases.
+//   - SourceType/SourceID identify what triggered the case (report, settlement, etc.)
 type AdminCase struct {
 	ID               string `gorm:"primaryKey;size:64" json:"id"`
 	CaseType         string `gorm:"size:32;not null;index" json:"caseType"`
 	PostID           string `gorm:"size:64;not null;index" json:"postId"`
 	TargetUserID     string `gorm:"size:64;not null;index" json:"targetUserId"`
-	ReporterUserID   string `gorm:"size:64;not null;index" json:"reporterUserId"`
+	ReporterUserID   string `gorm:"size:64;not null;index" json:"reporterUserId"`   // canonical reporter
 	ResolverUserID   string `gorm:"size:64;not null;default:'';index" json:"resolverUserId"`
 	AgentRunID       string `gorm:"size:64;not null;default:''" json:"agentRunId"`
-	Status           string `gorm:"size:24;not null;default:open;index" json:"status"`
-	Resolution       string `gorm:"size:32;not null;default:''" json:"resolution"`
+	Status           string `gorm:"size:24;not null;default:open;index" json:"status"` // open, investigating, under_review, in_review, resolved
+	Resolution       string `gorm:"size:32;not null;default:''" json:"resolution"`     // completed, cancelled, no_show
 	ResolutionNote   string `gorm:"type:text;not null;default:''" json:"resolutionNote"`
 	ResolvedAt       int64  `gorm:"not null;default:0;index" json:"resolvedAt"`
 	SourceRef        string `gorm:"size:128;not null;uniqueIndex" json:"sourceRef"`
 	Summary          string `gorm:"type:text;not null;default:''" json:"summary"`
-	SourceType       string `gorm:"size:32;not null;default:'';index" json:"sourceType"`
+	SourceType       string `gorm:"size:32;not null;default:'';index" json:"sourceType"` // "report", "settlement", "credit"
 	SourceID         string `gorm:"size:128;not null;default:'';index" json:"sourceId"`
-	ReporterID       string `gorm:"size:64;not null;default:'';index" json:"reporterId"`
+	ReporterID       string `gorm:"size:64;not null;default:'';index" json:"reporterId"` // same as ReporterUserID (legacy dup)
 	Description      string `gorm:"type:text;not null;default:''" json:"description"`
 	EvidenceSnapshot string `gorm:"type:text;not null;default:'{}'" json:"evidenceSnapshot"`
-	Decision         string `gorm:"size:32;not null;default:''" json:"decision"`
-	DecisionReason   string `gorm:"type:text;not null;default:''" json:"decisionReason"`
+	Decision         string `gorm:"size:32;not null;default:''" json:"decision"`         // admin manual resolution decision
+	DecisionReason   string `gorm:"type:text;not null;default:''" json:"decisionReason"` // admin manual resolution reason
 	CreatedAt        int64  `gorm:"not null;index" json:"createdAt"`
 	UpdatedAt        int64  `gorm:"not null" json:"updatedAt"`
 }

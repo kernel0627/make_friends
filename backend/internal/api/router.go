@@ -1475,7 +1475,7 @@ func (s *Server) RequireAuth() gin.HandlerFunc {
 			}
 			c.Set(contextTokenJTIKey, jti)
 		}
-		resolvedRole, rootAdmin, deleted, found := s.resolveUserAccess(userID)
+		resolvedRole, rootAdmin, deleted, suspended, found := s.resolveUserAccess(userID)
 		if !found {
 			fail(c, http.StatusUnauthorized, "USER_NOT_FOUND", "user no longer exists")
 			c.Abort()
@@ -1483,6 +1483,11 @@ func (s *Server) RequireAuth() gin.HandlerFunc {
 		}
 		if deleted {
 			fail(c, http.StatusUnauthorized, "USER_DISABLED", "account has been disabled")
+			c.Abort()
+			return
+		}
+		if suspended {
+			fail(c, http.StatusForbidden, "USER_SUSPENDED", "account is suspended")
 			c.Abort()
 			return
 		}
