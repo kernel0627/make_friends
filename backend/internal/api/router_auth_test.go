@@ -247,6 +247,9 @@ func TestPostInvitationFlow(t *testing.T) {
 	if err := json.Unmarshal(createResp.Body.Bytes(), &createPayload); err != nil {
 		t.Fatalf("decode create post resp failed: %v", err)
 	}
+	// Approve the post so invitation acceptance isn't blocked by moderation hold
+	db.Model(&model.Post{}).Where("id = ?", createPayload.Post.ID).Update("moderation_status", "approved")
+
 	var invitation model.PostInvitation
 	if err := db.First(&invitation, "post_id = ? AND invitee_id = ?", createPayload.Post.ID, "user_invitee").Error; err != nil {
 		t.Fatalf("invitation should be created: %v", err)
