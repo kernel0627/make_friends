@@ -14,7 +14,7 @@
         <view class="empty-state__title">还没有群消息</view>
         <view class="empty-state__desc">你现在发出的第一条消息，会成为这场活动聊天的开场白。</view>
       </view>
-      <view class="msg-item" wx:for="{{messages}}" wx:key="id" id="{{item.id}}">
+      <view class="msg-item" wx:for="{{messages}}" wx:key="id" id="{{item.id}}" data-id="{{item.id}}" bindlongpress="onMessageLongPress">
         <image class="avatar" src="{{(item.sender && item.sender.avatarUrl) || ''}}" mode="aspectFill" />
         <view class="msg-body">
           <view class="nickname">{{(item.sender && item.sender.nickName) || item.senderId}}</view>

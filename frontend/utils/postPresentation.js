@@ -66,6 +66,22 @@ function statusFromHomePost(post, role) {
   const settlement = (post && post.settlementState) || {}
   const review = (post && post.reviewState) || {}
 
+  // Moderation status takes priority for the author
+  if (post && role === 'author' && post.moderationStatus && post.moderationStatus !== 'approved') {
+    if (post.moderationStatus === 'pending') {
+      return { text: '审核中', tone: 'gray' }
+    }
+    if (post.moderationStatus === 'rejected') {
+      return { text: '已下架', tone: 'red' }
+    }
+    if (post.moderationStatus === 'needs_revision') {
+      return { text: '待整改', tone: 'orange' }
+    }
+    if (post.moderationStatus === 'manual_review') {
+      return { text: '人工审核中', tone: 'gray' }
+    }
+  }
+
   if (settlement.projectCancelled || settlement.finalStatus === 'cancelled') {
     return { text: '已取消', tone: 'red' }
   }
@@ -123,6 +139,13 @@ function buildPreviewText(post, role) {
   const settlement = (post && post.settlementState) || {}
   const review = (post && post.reviewState) || {}
   const preview = (post && post.chatPreview) || {}
+
+  // Moderation hint for author
+  if (post && role === 'author' && post.moderationStatus && post.moderationStatus !== 'approved') {
+    if (post.moderationStatus === 'rejected') return '内容已被下架，可进入详情页申诉或编辑后重新提交'
+    if (post.moderationStatus === 'needs_revision') return '内容需要修改，请编辑后重新提交审核'
+    if (post.moderationStatus === 'pending' || post.moderationStatus === 'manual_review') return '内容正在审核中，审核通过后其他人才能看到'
+  }
 
   if (settlement.projectCancelled || settlement.finalStatus === 'cancelled') {
     return role === 'author' ? '项目已取消，后续流程已终止' : '活动已取消，后续流程已终止'

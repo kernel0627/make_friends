@@ -62,7 +62,8 @@ func (s *Server) GetUserHome(c *gin.Context) {
 	user.Role = model.NormalizeUserRole(user.Role)
 
 	var initiatedPosts []model.Post
-	if err := activePostsQuery(s.DB).Where("author_id = ?", userID).Order("created_at DESC").Find(&initiatedPosts).Error; err != nil {
+	// Author sees all their posts regardless of moderation status
+	if err := s.DB.Where("deleted_at = 0 AND author_id = ?", userID).Order("created_at DESC").Find(&initiatedPosts).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "query initiated posts failed"})
 		return
 	}
@@ -84,7 +85,8 @@ func (s *Server) GetUserHome(c *gin.Context) {
 			postIDs = append(postIDs, item.PostID)
 		}
 		var joinedPosts []model.Post
-		if err := activePostsQuery(s.DB).Where("id IN ?", uniqueStrings(postIDs)).Order("created_at DESC").Find(&joinedPosts).Error; err != nil {
+		// Participant sees posts they joined even if later taken down
+		if err := s.DB.Where("deleted_at = 0 AND id IN ?", uniqueStrings(postIDs)).Order("created_at DESC").Find(&joinedPosts).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "query joined post records failed"})
 			return
 		}

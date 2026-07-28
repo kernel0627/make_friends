@@ -271,6 +271,11 @@ textarea {
   border-color: #ffe1a8;
 }
 
+.stat-card-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
 .stat-card-label {
   font-size: 13px;
   color: #6b778c;
@@ -281,6 +286,19 @@ textarea {
   font-size: 30px;
   font-weight: 800;
   color: #172338;
+}
+
+.agent-stats-section {
+  margin-top: 16px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+.agent-stats-section .detail-label {
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .dashboard-chart-grid {
@@ -589,10 +607,313 @@ textarea {
   color: #8a5a00;
 }
 
+.status-investigating {
+  background: #e8f4fd;
+  color: #1a5c8a;
+}
+
+.status-under_review {
+  background: #fef3e2;
+  color: #8a5a00;
+}
+
 .status-resolved,
 .status-closed {
   background: #eef2f8;
   color: #4c5a72;
+}
+
+.status-proposed {
+  background: #fff4dc;
+  color: #8a5a00;
+}
+
+.status-approved {
+  background: #eff8f2;
+  color: #197348;
+}
+
+.status-rejected {
+  background: #fff3f1;
+  color: #992d1d;
+}
+
+.status-executed {
+  background: #eef2f8;
+  color: #4c5a72;
+}
+
+.status-pending {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.status-running {
+  background: #e8f4fd;
+  color: #1a5c8a;
+}
+
+.status-danger {
+  background: #fff3f1;
+  color: #992d1d;
+}
+
+.status-warn {
+  background: #fff9ef;
+  color: #92400e;
+}
+
+.status-completed {
+  background: #eff8f2;
+  color: #197348;
+}
+
+.status-failed {
+  background: #fff3f1;
+  color: #992d1d;
+}
+
+/* Decision card */
+.decision-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.decision-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.decision-card__outcome {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.decision-card__confidence {
+  margin-bottom: 12px;
+}
+
+.confidence-bar {
+  position: relative;
+  height: 20px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.confidence-bar__fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.confidence-bar__fill.confidence-high {
+  background: #4ade80;
+}
+
+.confidence-bar__fill.confidence-mid {
+  background: #fbbf24;
+}
+
+.confidence-bar__fill.confidence-low {
+  background: #f87171;
+}
+
+.confidence-bar__label {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+
+.detail-sublabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.decision-card__actions {
+  margin-bottom: 12px;
+}
+
+.action-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+
+.action-list li {
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.decision-card__reasoning summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #4c5a72;
+  margin-bottom: 6px;
+}
+
+.decision-card__reasoning p {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.decision-card__buttons {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.reject-form {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reject-form textarea {
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.danger-button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warn-button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #f59e0b;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.warn-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Agent run status */
+.agent-run-status__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.link-button:hover { color: #1d4ed8; }
+
+.agent-steps-timeline {
+  margin-top: 10px;
+  border-left: 2px solid #e2e8f0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.agent-step__index {
+  font-weight: 600;
+  color: #64748b;
+  min-width: 24px;
+}
+
+.agent-step__action {
+  font-family: monospace;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.agent-step__latency {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.agent-step__reason {
+  flex-basis: 100%;
+  padding-left: 32px;
+  font-size: 12px;
+}
+
+.agent-step__error {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .error-banner,

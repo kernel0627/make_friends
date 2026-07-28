@@ -5,6 +5,10 @@ import "strings"
 const (
 	UserRoleUser  = "user"
 	UserRoleAdmin = "admin"
+
+	UserStatusActive    = "active"
+	UserStatusSuspended = "suspended"
+	UserStatusBanned    = "banned"
 )
 
 func IsAdminRole(role string) bool {
@@ -18,4 +22,10 @@ func NormalizeUserRole(raw string) string {
 	default:
 		return UserRoleUser
 	}
+}
+
+// IsUserActive returns true if the user status allows normal operation.
+func IsUserActive(status string) bool {
+	s := strings.TrimSpace(strings.ToLower(status))
+	return s == "" || s == UserStatusActive
 }

@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"gorm.io/gorm"
+
+	"make_friends/backend/internal/model"
 )
 
 func activeUsersQuery(db *gorm.DB) *gorm.DB {
@@ -19,9 +21,13 @@ func activePostsQuery(db *gorm.DB) *gorm.DB {
 func applySoftDeleteStatus(query *gorm.DB, column string, raw string) *gorm.DB {
 	switch strings.TrimSpace(strings.ToLower(raw)) {
 	case "", "active":
-		return query.Where(column + " = 0")
+		return query.Where(column+" = 0 AND (status = '' OR status = ?)", model.UserStatusActive)
 	case "deleted":
 		return query.Where(column + " > 0")
+	case "suspended":
+		return query.Where(column+" = 0 AND status = ?", model.UserStatusSuspended)
+	case "banned":
+		return query.Where(column+" = 0 AND status = ?", model.UserStatusBanned)
 	case "all":
 		return query
 	default:

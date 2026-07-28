@@ -5,6 +5,8 @@ export const ROLE_LABELS = {
 
 export const USER_STATUS_LABELS = {
   active: "正常",
+  suspended: "已暂停",
+  banned: "已封禁",
   deleted: "已删除",
 };
 
@@ -17,6 +19,8 @@ export const POST_STATUS_LABELS = {
 export const CASE_STATUS_LABELS = {
   open: "待处理",
   in_review: "处理中",
+  investigating: "调查中",
+  under_review: "待审批",
   resolved: "已结案",
 };
 
@@ -56,7 +60,11 @@ export function getRoleLabel(value) {
 }
 
 export function getUserStatusLabel(user) {
-  return user && Number(user.deletedAt) > 0 ? USER_STATUS_LABELS.deleted : USER_STATUS_LABELS.active;
+  if (!user) return "-";
+  if (Number(user.deletedAt) > 0) return USER_STATUS_LABELS.deleted;
+  if (user.status === "banned") return USER_STATUS_LABELS.banned;
+  if (user.status === "suspended") return USER_STATUS_LABELS.suspended;
+  return USER_STATUS_LABELS.active;
 }
 
 export function getPostStatusLabel(post) {
@@ -93,12 +101,18 @@ export function getPostStatusTone(post) {
 }
 
 export function getUserStatusTone(user) {
-  return user && Number(user.deletedAt) > 0 ? "status-resolved" : "status-open";
+  if (!user) return "";
+  if (Number(user.deletedAt) > 0) return "status-resolved";
+  if (user.status === "banned") return "status-danger";
+  if (user.status === "suspended") return "status-warn";
+  return "status-open";
 }
 
 export function getCaseStatusTone(value) {
   if (value === "resolved") return "status-resolved";
   if (value === "in_review") return "status-in_review";
+  if (value === "investigating") return "status-investigating";
+  if (value === "under_review") return "status-under_review";
   return "status-open";
 }
 
@@ -116,4 +130,49 @@ export function mapPostStatusName(value) {
 
 export function mapCaseStatusName(value) {
   return CASE_STATUS_LABELS[value] || value || "-";
+}
+
+// --- Agent Decision Display ---
+
+export const DECISION_OUTCOME_LABELS = {
+  upheld: "举报/投诉成立",
+  rejected: "举报/投诉不成立",
+  insufficient_evidence: "证据不足",
+  escalate: "需升级处理",
+};
+
+export const DECISION_STATUS_LABELS = {
+  proposed: "待审批",
+  approved: "已批准",
+  rejected: "已驳回",
+  executed: "已执行",
+};
+
+export const ACTION_LABELS = {
+  credit_deduct: "扣除信誉分",
+  credit_restore: "恢复信誉分",
+  post_takedown: "下架帖子",
+  post_restore: "恢复帖子",
+  suspend_user: "暂停账号",
+  ban_user: "永久封禁",
+};
+
+export function getDecisionOutcomeLabel(value) {
+  return DECISION_OUTCOME_LABELS[value] || value || "-";
+}
+
+export function getDecisionStatusLabel(value) {
+  return DECISION_STATUS_LABELS[value] || value || "-";
+}
+
+export function getActionLabel(action) {
+  return ACTION_LABELS[action] || action || "未知操作";
+}
+
+export function formatAction(act) {
+  const label = getActionLabel(act.action);
+  const parts = [label];
+  if (act.amount) parts.push(`${act.amount} 分`);
+  if (act.reason) parts.push(`— ${act.reason}`);
+  return parts.join(" ");
 }

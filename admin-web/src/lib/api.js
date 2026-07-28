@@ -120,6 +120,17 @@ export function restoreAdminUser(id) {
   return apiRequest(`/api/v1/admin/users/${id}/restore`, { method: "POST" });
 }
 
+export function suspendAdminUser(id, body) {
+  return apiRequest(`/api/v1/admin/users/${id}/suspend`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function unsuspendAdminUser(id) {
+  return apiRequest(`/api/v1/admin/users/${id}/unsuspend`, { method: "POST", body: "{}" });
+}
+
 export function resetAdminUserPassword(id, body) {
   return apiRequest(`/api/v1/admin/users/${id}/reset-password`, {
     method: "POST",
@@ -207,4 +218,21 @@ export function resetAdminAccountPassword(id, body) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function investigateCase(caseId) {
+  return apiRequest(`/api/v1/admin/cases/${caseId}/investigate`, {
+    method: "POST",
+  });
+}
+
+export function reviewCaseDecision(caseId, body) {
+  return apiRequest(`/api/v1/admin/cases/${caseId}/review-decision`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchAgentRun(id) {
+  return apiRequest(`/api/v1/admin/agent-runs/${id}`);
 }

@@ -29,7 +29,10 @@
           <view class="ledger-note">{{item.note || item.sourceType}}</view>
           <view class="ledger-time">{{item.timeText}}</view>
         </view>
-        <view class="ledger-delta {{item.delta >= 0 ? 'ledger-delta--up' : 'ledger-delta--down'}}">{{item.deltaText}}</view>
+        <view class="ledger-right">
+          <view class="ledger-delta {{item.delta >= 0 ? 'ledger-delta--up' : 'ledger-delta--down'}}">{{item.deltaText}}</view>
+          <view wx:if="{{item.delta < 0}}" class="ledger-appeal" data-id="{{item.id}}" bindtap="onAppealTap">申诉</view>
+        </view>
       </view>
     </block>
     <view wx:else class="empty-state">

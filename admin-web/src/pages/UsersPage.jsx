@@ -10,6 +10,8 @@ import {
   fetchAdminUsers,
   resetAdminUserPassword,
   restoreAdminUser,
+  suspendAdminUser,
+  unsuspendAdminUser,
   updateAdminUser,
 } from "../lib/api";
 import usePagedList from "../lib/usePagedList";
@@ -110,6 +112,30 @@ export default function UsersPage() {
     }
   }
 
+  async function handleSuspend() {
+    if (!selectedUser?.user?.id) return;
+    const daysStr = window.prompt("暂停天数（0=无限期）", "7");
+    if (daysStr === null) return;
+    try {
+      await suspendAdminUser(selectedUser.user.id, { days: Number(daysStr) || 7 });
+      await openUser(selectedUser.user.id);
+      await refreshList();
+    } catch (err) {
+      setError(err.message || "暂停用户失败");
+    }
+  }
+
+  async function handleUnsuspend() {
+    if (!selectedUser?.user?.id) return;
+    try {
+      await unsuspendAdminUser(selectedUser.user.id);
+      await openUser(selectedUser.user.id);
+      await refreshList();
+    } catch (err) {
+      setError(err.message || "解除暂停失败");
+    }
+  }
+
   async function handleAdjust(event) {
     event.preventDefault();
     if (!selectedUser?.user?.id) return;
@@ -144,6 +170,8 @@ export default function UsersPage() {
           />
           <select value={filters.status} onChange={(event) => updateFilters({ status: event.target.value })}>
             <option value="active">正常</option>
+            <option value="suspended">已暂停</option>
+            <option value="banned">已封禁</option>
             <option value="deleted">已删除</option>
             <option value="all">全部</option>
           </select>
@@ -227,8 +255,13 @@ export default function UsersPage() {
                   <div className="detail-card-actions">
                     {Number(selectedUser.user.deletedAt) > 0 ? (
                       <button className="secondary-button" type="button" onClick={handleRestore}>恢复用户</button>
+                    ) : selectedUser.user.status === "suspended" || selectedUser.user.status === "banned" ? (
+                      <button className="secondary-button" type="button" onClick={handleUnsuspend}>解除封禁</button>
                     ) : (
-                      <button className="danger-button" type="button" onClick={handleDelete}>软删除</button>
+                      <>
+                        <button className="warn-button" type="button" onClick={handleSuspend}>暂停账号</button>
+                        <button className="danger-button" type="button" onClick={handleDelete}>软删除</button>
+                      </>
                     )}
                   </div>
                 </div>

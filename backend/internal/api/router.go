@@ -161,6 +161,8 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 				admin.DELETE("/users/:id", s.DeleteAdminUser)
 				admin.POST("/users/:id/restore", s.RestoreAdminUser)
 				admin.POST("/users/:id/reset-password", s.ResetAdminUserPassword)
+				admin.POST("/users/:id/suspend", s.SuspendAdminUser)
+				admin.POST("/users/:id/unsuspend", s.UnsuspendAdminUser)
 				admin.GET("/users/:id/credit-ledger", s.GetAdminUserCreditLedger)
 				admin.POST("/users/:id/credit-adjust", s.AdminAdjustUserCredit)
 				admin.GET("/posts", s.ListAdminPosts)
@@ -1475,7 +1477,7 @@ func (s *Server) RequireAuth() gin.HandlerFunc {
 			}
 			c.Set(contextTokenJTIKey, jti)
 		}
-		resolvedRole, rootAdmin, deleted, found := s.resolveUserAccess(userID)
+		resolvedRole, rootAdmin, deleted, suspended, found := s.resolveUserAccess(userID)
 		if !found {
 			fail(c, http.StatusUnauthorized, "USER_NOT_FOUND", "user no longer exists")
 			c.Abort()
@@ -1483,6 +1485,11 @@ func (s *Server) RequireAuth() gin.HandlerFunc {
 		}
 		if deleted {
 			fail(c, http.StatusUnauthorized, "USER_DISABLED", "account has been disabled")
+			c.Abort()
+			return
+		}
+		if suspended {
+			fail(c, http.StatusForbidden, "USER_SUSPENDED", "account is suspended")
 			c.Abort()
 			return
 		}

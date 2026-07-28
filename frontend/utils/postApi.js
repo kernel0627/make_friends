@@ -366,6 +366,26 @@ function reportFeedClick(payload) {
   return request({ url: '/recommendations/click', method: 'POST', data: payload || {}, noAuth: true, skipAuthRefresh: true })
 }
 
+function reportPost(postId, data) {
+  return request({ url: '/posts/' + postId + '/reports', method: 'POST', data: data || {} })
+}
+
+function reportMessage(messageId, data) {
+  return request({ url: '/messages/' + messageId + '/reports', method: 'POST', data: data || {} })
+}
+
+function getPostModeration(postId) {
+  return request({ url: '/posts/' + postId + '/moderation', method: 'GET' })
+}
+
+function appealModeration(moderationId, data) {
+  return request({ url: '/moderations/' + moderationId + '/appeals', method: 'POST', data: data || {} })
+}
+
+function appealCreditLedger(ledgerId, data) {
+  return request({ url: '/credit-ledgers/' + ledgerId + '/appeals', method: 'POST', data: data || {} })
+}
+
 module.exports = {
   listPosts,
   getPostDetail,
@@ -387,4 +407,9 @@ module.exports = {
   reportFeedClick,
   normalizePost,
   normalizeUser,
+  reportPost,
+  reportMessage,
+  getPostModeration,
+  appealModeration,
+  appealCreditLedger,
 }

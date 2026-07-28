@@ -1,4 +1,5 @@
 const { fetchChatMessages, sendChatMessage, connectChatRoom, mergeChatMessages } = require('../../utils/chatApi')
+const { reportMessage } = require('../../utils/postApi')
 const { ensurePageLogin, loginWithWechat, gotoLoginPage, gotoRegisterPage } = require('../../utils/auth')
 const { openPage } = require('../../utils/navigation')
 const { saveChatMessages } = require('../../utils/store')
@@ -199,5 +200,20 @@ Page({
   onRegister() {
     this.setData({ showLoginModal: false })
     gotoRegisterPage()
+  },
+
+  onMessageLongPress(e) {
+    const msgId = e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id
+    if (!msgId) return
+    wx.showActionSheet({
+      itemList: ['举报该消息'],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          reportMessage(msgId, { description: 'inappropriate_content' })
+            .then(() => wx.showToast({ title: '举报已提交', icon: 'success' }))
+            .catch((err) => wx.showToast({ title: (err && err.message) || '举报失败', icon: 'none' }))
+        }
+      },
+    })
   },
 })

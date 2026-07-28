@@ -1,0 +1,55 @@
+id: identity_fake
+version: "1.0"
+name: 虚假身份判定规则
+description: 判断用户是否使用虚假资料或冒充他人
+
+# 构成虚假身份的行为
+violations:
+  - 使用明显非本人的头像（网图、明星照片、AI 生成面容）
+  - 昵称冒充平台官方或其他用户
+  - 个人信息描述中包含虚假的职业、年龄等关键信息
+  - 同一人注册多个账号规避处罚（小号行为）
+  - 使用他人信息注册（盗用身份）
+
+# 不构成违规
+defenses:
+  - 使用卡通、风景等非人物头像（不涉及冒充）
+  - 昵称为网名或昵称，不涉及冒充特定真实人物
+  - 个人信息轻微美化（如四舍五入年龄）
+  - 出于隐私保护使用模糊描述
+
+# 判定标准
+criteria:
+  multiple_reports: 3 人以上独立举报同一用户资料有问题
+  inconsistency: 用户在不同活动中自称不同身份
+  reverse_search: 头像被反向搜索命中网图库（需人工确认）
+  multi_account: 同一设备/IP/OpenID 关联多个账号
+
+# 证据强度
+evidence_strength:
+  strong:
+    - 多人举报 + 具体不一致证据
+    - 系统检测到多账号关联
+    - 头像反向搜索命中（需人工确认是否为本人）
+  medium:
+    - 单人举报但提供了具体的前后矛盾截图
+    - 用户在聊天中自相矛盾的陈述
+    - 注册信息与活动中表现明显不符
+  weak:
+    - 仅凭"感觉不对"的主观判断
+    - 头像使用非本人照片但无冒充意图
+    - 单一活动中的信息偏差
+
+# 证据标准
+evidence_standard:
+  required: 举报内容 + 用户当前资料
+  strongly_recommended: 多源举报 / 聊天记录中的矛盾点
+  supporting: 用户历史活动记录、系统检测结果
+
+# 处置
+actions:
+  confirmed_fake_identity: suspend_user(permanent), penalty_credit(-50)
+  multi_account_evasion: ban_all_accounts, penalty_credit(-50)
+  mild_misrepresentation: warn_user, require_profile_update
+  insufficient_evidence: escalate_to_admin
+  false_report: no_action, archive_report

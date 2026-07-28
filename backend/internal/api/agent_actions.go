@@ -17,9 +17,10 @@ import (
 
 // agentExecuteActionReq is the internal parameter struct for action execution helpers.
 type agentExecuteActionReq struct {
-	Action   string // credit_deduct, credit_restore, post_restore, post_takedown
-	TargetID string // user_id for credit actions, post_id for post actions
+	Action   string // credit_deduct, credit_restore, post_restore, post_takedown, suspend_user, ban_user
+	TargetID string // user_id for credit/user actions, post_id for post actions
 	Amount   int    // for credit actions
+	Duration int    // for suspend_user: days (0 = indefinite)
 	Reason   string
 	RunID    string
 }
@@ -184,6 +185,45 @@ func (s *Server) executePostTakedown(adminCase model.AdminCase, req agentExecute
 		}
 		return nil
 	})
+}
+
+func (s *Server) executeSuspendUser(adminCase model.AdminCase, req agentExecuteActionReq, operatorID string, now int64) error {
+	targetID := req.TargetID
+	if targetID == "" {
+		targetID = adminCase.TargetUserID
+	}
+	if targetID == "" {
+		return fmt.Errorf("no target user for suspension")
+	}
+	days := req.Duration
+	if days <= 0 {
+		days = 7 // default 7-day suspension
+	}
+	suspendUntil := now + int64(days)*24*60*60*1000 // days → milliseconds
+
+	return s.DB.Model(&model.User{}).Where("id = ?", targetID).Updates(map[string]any{
+		"status":        model.UserStatusSuspended,
+		"suspended_at":  now,
+		"suspend_until": suspendUntil,
+		"updated_at":    now,
+	}).Error
+}
+
+func (s *Server) executeBanUser(adminCase model.AdminCase, req agentExecuteActionReq, operatorID string, now int64) error {
+	targetID := req.TargetID
+	if targetID == "" {
+		targetID = adminCase.TargetUserID
+	}
+	if targetID == "" {
+		return fmt.Errorf("no target user for ban")
+	}
+
+	return s.DB.Model(&model.User{}).Where("id = ?", targetID).Updates(map[string]any{
+		"status":        model.UserStatusBanned,
+		"suspended_at":  now,
+		"suspend_until": 0, // permanent
+		"updated_at":    now,
+	}).Error
 }
 
 func abs(x int) int {

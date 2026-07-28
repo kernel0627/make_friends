@@ -1,0 +1,57 @@
+id: settlement_cancellation
+version: "1.0"
+name: 临时取消判定规则
+description: 判断组织者临时取消活动是否构成违规
+
+# 构成违规取消的条件
+conditions:
+  - 活动开始前 24 小时内单方取消
+  - 已有参与者报名且未逐一通知
+  - 取消后未提供合理解释
+
+# 不构成违规
+defenses:
+  - 活动开始前 48 小时以上取消，且通知所有参与者
+  - 因不可抗力取消（天气灾害、场地突然关闭、政策禁令）
+  - 所有参与者在取消前已自行退出
+  - 参与人数未达最低要求（如只有 1 人报名），且提前 24 小时通知
+  - 组织者突发疾病或紧急情况，并在合理时间内通知
+
+# 时间节点分级
+timing_rules:
+  no_penalty: 活动开始前 48 小时以上取消
+  mild_penalty: 活动开始前 24-48 小时取消且未通知
+  severe_penalty: 活动开始前 24 小时内取消且未通知
+  aggravated: 活动开始后才通知取消（参与者已到达现场）
+
+# 通知义务
+notification_requirement:
+  - 组织者有义务在取消时通知所有已报名参与者
+  - 通知方式：聊天消息 / 系统通知均可
+  - 仅修改活动状态为"取消"但未发消息不视为有效通知
+
+# 证据强度
+evidence_strength:
+  strong:
+    - 系统记录的活动取消时间 vs 活动预定开始时间
+    - 聊天记录中组织者发送的取消通知及时间
+    - 参与者列表 + 是否收到通知的记录
+  medium:
+    - 组织者提供的不可抗力证明（截图、官方通告）
+    - 聊天中参与者的反馈
+  weak:
+    - 单方口头解释无佐证
+    - 事后补发的通知
+
+# 证据标准
+evidence_standard:
+  required: 活动状态变更记录 + 取消时间
+  strongly_recommended: 通知记录 + 参与者反应
+  supporting: 聊天记录 + 领域事件时间线
+
+# 处置
+actions:
+  severe_violation: penalty_credit(-20), mark_unreliable_organizer
+  mild_violation: penalty_credit(-10), warn_organizer
+  force_majeure: no_penalty, record_event
+  insufficient_evidence: escalate_to_admin

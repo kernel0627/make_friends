@@ -82,12 +82,12 @@ func (s *Server) WSChat(c *gin.Context) {
 			return
 		}
 	}
-	_, _, deleted, found := s.resolveUserAccess(userID)
+	_, _, deleted, suspended, found := s.resolveUserAccess(userID)
 	if !found {
 		fail(c, http.StatusUnauthorized, "USER_NOT_FOUND", "user no longer exists")
 		return
 	}
-	if deleted {
+	if deleted || suspended {
 		fail(c, http.StatusUnauthorized, "USER_DISABLED", "account has been disabled")
 		return
 	}

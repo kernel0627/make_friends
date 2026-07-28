@@ -31,8 +31,17 @@ type adminCaseDetail struct {
 	Reporter         *model.User                      `json:"reporter,omitempty"`
 	Resolver         *model.User                      `json:"resolver,omitempty"`
 	Settlement       *model.PostParticipantSettlement `json:"settlement,omitempty"`
+	Decision         *model.CaseDecision              `json:"decision,omitempty"`
+	AgentRun         *adminAgentRunSummary             `json:"agentRun,omitempty"`
 	Timeline         []adminCaseTimelineItem          `json:"timeline"`
 	CreditComparison adminCaseCreditComparison        `json:"creditComparison"`
+}
+
+type adminAgentRunSummary struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	StepCount int    `json:"stepCount"`
+	StartedAt int64  `json:"startedAt"`
 }
 
 type adminCaseResolveReq struct {
@@ -202,6 +211,8 @@ func (s *Server) listAdminCasesResponse(c *gin.Context) {
 func (s *Server) adminDashboardSummaryResponse(c *gin.Context) {
 	var openCases int64
 	var inReviewCases int64
+	var investigatingCases int64
+	var underReviewCases int64
 	var disputedSettlements int64
 	var pendingReviews int64
 	var recentCreditDeltas int64
@@ -212,6 +223,8 @@ func (s *Server) adminDashboardSummaryResponse(c *gin.Context) {
 
 	_ = s.DB.Model(&model.AdminCase{}).Where("status = ?", "open").Count(&openCases).Error
 	_ = s.DB.Model(&model.AdminCase{}).Where("status = ?", "in_review").Count(&inReviewCases).Error
+	_ = s.DB.Model(&model.AdminCase{}).Where("status = ?", "investigating").Count(&investigatingCases).Error
+	_ = s.DB.Model(&model.AdminCase{}).Where("status = ?", "under_review").Count(&underReviewCases).Error
 	_ = s.DB.Model(&model.PostParticipantSettlement{}).Where("final_status = ?", score.SettlementDisputed).Count(&disputedSettlements).Error
 	_ = s.DB.Model(&model.ActivityScore{}).Where("expected_review_count > completed_review_count").Count(&pendingReviews).Error
 	_ = s.DB.Model(&model.CreditLedger{}).Where("created_at >= ?", now-int64(7*24*time.Hour/time.Millisecond)).Count(&recentCreditDeltas).Error
@@ -219,15 +232,46 @@ func (s *Server) adminDashboardSummaryResponse(c *gin.Context) {
 	_ = activePostsQuery(s.DB.Model(&model.Post{})).Count(&totalPosts).Error
 	_ = activePostsQuery(s.DB.Model(&model.Post{})).Where("status = ?", "closed").Count(&closedPosts).Error
 
+	// Agent stats
+	var totalRuns int64
+	var completedRuns int64
+	var failedRuns int64
+	_ = s.DB.Model(&model.AgentRun{}).Count(&totalRuns).Error
+	_ = s.DB.Model(&model.AgentRun{}).Where("status = ?", "completed").Count(&completedRuns).Error
+	_ = s.DB.Model(&model.AgentRun{}).Where("status = ?", "failed").Count(&failedRuns).Error
+
+	var avgDurationMs float64
+	s.DB.Model(&model.AgentRun{}).
+		Where("status = ? AND completed_at > 0 AND started_at > 0", "completed").
+		Select("COALESCE(AVG(completed_at - started_at), 0)").
+		Scan(&avgDurationMs)
+
+	var totalDecisions int64
+	var autoApprovedDecisions int64
+	_ = s.DB.Model(&model.CaseDecision{}).Count(&totalDecisions).Error
+	_ = s.DB.Model(&model.CaseDecision{}).Where("approved_by = ?", "system:auto-approve").Count(&autoApprovedDecisions).Error
+
 	c.JSON(http.StatusOK, gin.H{
 		"openCases":           openCases,
 		"inReviewCases":       inReviewCases,
+		"investigatingCases":  investigatingCases,
+		"underReviewCases":    underReviewCases,
 		"disputedSettlements": disputedSettlements,
 		"pendingReviews":      pendingReviews,
 		"recentCreditDeltas":  recentCreditDeltas,
 		"totalUsers":          totalUsers,
 		"totalPosts":          totalPosts,
 		"closedPosts":         closedPosts,
+		"agent": gin.H{
+			"totalRuns":         totalRuns,
+			"completedRuns":     completedRuns,
+			"failedRuns":        failedRuns,
+			"avgDurationMs":     avgDurationMs,
+			"totalDecisions":    totalDecisions,
+			"autoApproved":      autoApprovedDecisions,
+			"successRate":       safePercent(completedRuns, totalRuns),
+			"autoApproveRate":   safePercent(autoApprovedDecisions, totalDecisions),
+		},
 	})
 }
 
@@ -277,6 +321,26 @@ func (s *Server) GetAdminCase(c *gin.Context) {
 			payload.Settlement = &settlement
 		}
 	}
+
+	// Fetch latest CaseDecision for this case (proposed or executed)
+	var decision model.CaseDecision
+	if err := s.DB.Where("case_id = ?", caseID).Order("created_at DESC").First(&decision).Error; err == nil {
+		payload.Decision = &decision
+	}
+
+	// Fetch agent run summary if the case has one
+	if row.AgentRunID != "" {
+		var run model.AgentRun
+		if err := s.DB.First(&run, "id = ?", row.AgentRunID).Error; err == nil {
+			payload.AgentRun = &adminAgentRunSummary{
+				ID:        run.ID,
+				Status:    run.Status,
+				StepCount: run.StepCount,
+				StartedAt: run.StartedAt,
+			}
+		}
+	}
+
 	payload.Timeline = buildAdminCaseTimeline(payload.Case, payload.Settlement)
 	payload.CreditComparison = s.buildAdminCaseCreditComparison(payload.Case, payload.TargetUser, payload.Reporter)
 
@@ -844,4 +908,11 @@ func maxInt64(left, right int64) int64 {
 		return left
 	}
 	return right
+}
+
+func safePercent(numerator, denominator int64) float64 {
+	if denominator == 0 {
+		return 0
+	}
+	return float64(numerator) / float64(denominator) * 100
 }

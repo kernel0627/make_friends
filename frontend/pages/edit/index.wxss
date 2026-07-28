@@ -94,6 +94,17 @@
   color: #7a869a;
 }
 
+.moderation-notice {
+  background: #fffbf0;
+  border-color: rgba(230, 180, 60, 0.3);
+}
+
+.moderation-notice__text {
+  font-size: 26rpx;
+  color: #8a6d00;
+  line-height: 1.5;
+}
+
 .section-title {
   font-size: 28rpx;
   color: #172033;

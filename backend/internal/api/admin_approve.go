@@ -132,6 +132,10 @@ func (s *Server) executeProposedAction(caseID string, act map[string]any, adminI
 	if v, ok := act["amount"].(float64); ok {
 		amount = int(v)
 	}
+	duration := 0
+	if v, ok := act["duration"].(float64); ok {
+		duration = int(v)
+	}
 
 	var adminCase model.AdminCase
 	if err := s.DB.First(&adminCase, "id = ?", caseID).Error; err != nil {
@@ -143,6 +147,7 @@ func (s *Server) executeProposedAction(caseID string, act map[string]any, adminI
 		Action:   action,
 		TargetID: targetID,
 		Amount:   amount,
+		Duration: duration,
 		Reason:   reason,
 	}
 
@@ -155,6 +160,10 @@ func (s *Server) executeProposedAction(caseID string, act map[string]any, adminI
 		return s.executePostRestore(adminCase, req, operatorID, now)
 	case "post_takedown":
 		return s.executePostTakedown(adminCase, req, operatorID, now)
+	case "suspend_user":
+		return s.executeSuspendUser(adminCase, req, operatorID, now)
+	case "ban_user":
+		return s.executeBanUser(adminCase, req, operatorID, now)
 	default:
 		return fmt.Errorf("unknown action: %s", action)
 	}

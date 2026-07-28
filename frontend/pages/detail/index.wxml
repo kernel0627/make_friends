@@ -20,10 +20,32 @@
           <view class="inline-pill inline-pill--blue">{{post.category || '活动分类'}}</view>
           <view class="inline-pill inline-pill--cyan" wx:if="{{post.subCategory}}">{{post.subCategory}}</view>
         </view>
-        <button wx:if="{{isAuthor && post.status === 'open'}}" class="danger-btn detail-hero__close-btn" bindtap="onClosePostTap" style="margin-right: 3rpx;">结束活动</button>
+        <button wx:if="{{isAuthor && post.status === 'open' && !moderationBlocked}}" class="danger-btn detail-hero__close-btn" bindtap="onClosePostTap" style="margin-right: 3rpx;">结束活动</button>
       </view>
       <view wx:if="{{closedSummary}}" class="detail-hero__closed">{{closedSummary}}</view>
       <view wx:if="{{flowSummaryText}}" class="detail-hero__summary">{{flowSummaryText}}</view>
+    </view>
+
+    <!-- Moderation banner (author view) -->
+    <view wx:if="{{moderationBlocked && isAuthor}}" class="surface-card section-block moderation-banner moderation-banner--{{statusMeta.tone}}">
+      <view class="section-title">{{statusMeta.text}}</view>
+      <view class="muted-text" wx:if="{{moderationReason}}">原因：{{moderationReason}}</view>
+      <view class="muted-text" wx:else>活动内容正在审核中，审核通过前其他用户无法报名。</view>
+      <view wx:if="{{post.moderationStatus === 'rejected' || post.moderationStatus === 'needs_revision'}}">
+        <button wx:if="{{!showAppealForm}}" class="secondary-btn" style="margin-top: 16rpx;" bindtap="onAppealTap">申诉</button>
+        <view wx:if="{{showAppealForm}}" class="appeal-form">
+          <textarea class="appeal-form__input" placeholder="请说明你的申诉原因" value="{{appealText}}" bindinput="onAppealInput" maxlength="500" />
+          <view class="appeal-form__buttons">
+            <button class="primary-btn" bindtap="onAppealSubmit" disabled="{{appealSubmitting || !appealText}}">提交申诉</button>
+            <button class="ghost-btn" bindtap="onAppealCancel">取消</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- Moderation notice (non-author view) -->
+    <view wx:if="{{moderationBlocked && !isAuthor}}" class="surface-card section-block moderation-banner moderation-banner--{{statusMeta.tone}}">
+      <view class="muted-text">该活动正在审核中，暂时无法报名参与。</view>
     </view>
 
     <view class="surface-card detail-section section-block">
@@ -79,7 +101,7 @@
 
     <view class="page-footer-actions bottom-safe-area">
       <view class="page-footer-actions__stack" wx:if="{{isAuthor}}">
-        <button wx:if="{{post.status === 'open'}}" class="secondary-btn" bindtap="onEditTap">编辑内容</button>
+        <button wx:if="{{post.status === 'open' || moderationBlocked}}" class="secondary-btn" bindtap="onEditTap">编辑内容</button>
         <button wx:if="{{showFlowButton}}" class="primary-btn" bindtap="onFlowTap">{{flowButtonText}}</button>
         <button wx:if="{{showChatButton}}" class="ghost-btn" bindtap="onChatTap">查看群聊</button>
       </view>
@@ -99,6 +121,7 @@
         <block wx:elif="{{showChatButton}}">
           <button class="ghost-btn" bindtap="onChatTap">查看群聊</button>
         </block>
+        <button wx:if="{{!moderationBlocked}}" class="ghost-btn report-btn" bindtap="onReportTap">举报</button>
       </view>
     </view>
   </block>

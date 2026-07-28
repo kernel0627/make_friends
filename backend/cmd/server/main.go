@@ -48,6 +48,7 @@ func main() {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 	serverRuntime.StartModerationWorkers(workerCtx)
+	serverRuntime.StartAutoApproveLoop()
 	go func() {
 		log.Printf("backend listening on %s", addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

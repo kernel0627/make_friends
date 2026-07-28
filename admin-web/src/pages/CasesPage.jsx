@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import PaginationBar from "../components/PaginationBar";
-import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase } from "../lib/api";
+import Modal from "../components/Modal";
+import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase, investigateCase, reviewCaseDecision, fetchAgentRun } from "../lib/api";
+import { getSession } from "../lib/session";
 import usePagedList from "../lib/usePagedList";
 import {
   getCaseResolutionLabel,
   getCaseStatusLabel,
   getCaseStatusTone,
   getSettlementDecisionLabel,
+  getActionLabel,
 } from "../lib/display";
 import { formatDateTime, formatDelta } from "../lib/format";
 
@@ -36,6 +39,160 @@ function ComparisonCard({ title, item }) {
   );
 }
 
+function ConfidenceBar({ value }) {
+  const pct = Math.round((value || 0) * 100);
+  const tone = pct >= 80 ? "confidence-high" : pct >= 50 ? "confidence-mid" : "confidence-low";
+  return (
+    <div className="confidence-bar">
+      <div className={`confidence-bar__fill ${tone}`} style={{ width: `${pct}%` }} />
+      <span className="confidence-bar__label">{pct}%</span>
+    </div>
+  );
+}
+
+function DecisionCard({ decision, onApprove, onReject, loading: actionLoading }) {
+  const [rejectComment, setRejectComment] = useState("");
+  const [showReject, setShowReject] = useState(false);
+
+  if (!decision) return null;
+
+  let actions = [];
+  try {
+    actions = JSON.parse(decision.actions || "[]");
+  } catch { /* ignore */ }
+
+  const isPending = decision.status === "proposed";
+
+  return (
+    <div className="detail-block decision-card">
+      <div className="detail-label">Agent 调查结论</div>
+      <div className="decision-card__header">
+        <span className={`status-tag status-${decision.status}`}>{decision.status}</span>
+        <span className="decision-card__outcome">{decision.outcome || "-"}</span>
+        {decision.responsibleParty ? <span className="muted-text">责任方：{decision.responsibleParty}</span> : null}
+      </div>
+
+      <div className="decision-card__confidence">
+        <span className="detail-sublabel">置信度</span>
+        <ConfidenceBar value={decision.confidence} />
+      </div>
+
+      {actions.length > 0 ? (
+        <div className="decision-card__actions">
+          <span className="detail-sublabel">建议操作</span>
+          <ul className="action-list">
+            {actions.map((act, i) => (
+              <li key={i}>
+                <strong>{getActionLabel(act.action)}</strong>
+                {act.amount ? ` (${act.amount}分)` : ""}
+                {act.reason ? ` — ${act.reason}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {decision.reasoning ? (
+        <details className="decision-card__reasoning">
+          <summary>推理过程</summary>
+          <p>{decision.reasoning}</p>
+        </details>
+      ) : null}
+
+      {!isPending && decision.approvedBy ? (
+        <div className="decision-card__reviewed">
+          <span className="muted-text">
+            {decision.status === "rejected" ? "驳回" : "批准"}：
+            {decision.approvedBy === "system:auto-approve" ? "系统自动审批" : decision.approvedBy}
+            {decision.approvedAt ? ` · ${new Date(decision.approvedAt).toLocaleString("zh-CN")}` : ""}
+          </span>
+        </div>
+      ) : null}
+
+      {isPending ? (
+        <div className="decision-card__buttons">
+          <button className="primary-button" disabled={actionLoading} onClick={onApprove}>
+            批准执行
+          </button>
+          <button className="secondary-button" disabled={actionLoading} onClick={() => setShowReject(true)}>
+            驳回
+          </button>
+          {showReject ? (
+            <div className="reject-form">
+              <textarea
+                rows="3"
+                placeholder="驳回原因（必填）"
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+              />
+              <button
+                className="danger-button"
+                disabled={actionLoading || !rejectComment.trim()}
+                onClick={() => onReject(rejectComment)}
+              >
+                确认驳回
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentRunStatus({ agentRun }) {
+  if (!agentRun) return null;
+  const [steps, setSteps] = useState(null);
+  const [stepsLoading, setStepsLoading] = useState(false);
+
+  const statusLabel = {
+    pending: "等待调查",
+    running: "调查中",
+    completed: "调查完成",
+    failed: "调查失败",
+  };
+  const isRunning = agentRun.status === "pending" || agentRun.status === "running";
+
+  async function loadSteps() {
+    if (steps) { setSteps(null); return; } // toggle
+    setStepsLoading(true);
+    try {
+      const data = await fetchAgentRun(agentRun.id);
+      setSteps(data.steps || []);
+    } catch { setSteps([]); }
+    setStepsLoading(false);
+  }
+
+  return (
+    <div className="detail-block agent-run-status">
+      <div className="detail-label">Agent 调查状态</div>
+      <div className="agent-run-status__row">
+        {isRunning ? <span className="spinner" /> : null}
+        <span className={`status-tag status-${agentRun.status}`}>{statusLabel[agentRun.status] || agentRun.status}</span>
+        {agentRun.stepCount > 0 ? <span className="muted-text">已完成 {agentRun.stepCount} 步</span> : null}
+        {agentRun.status === "completed" || agentRun.status === "failed" ? (
+          <button className="link-button" onClick={loadSteps}>
+            {stepsLoading ? "加载中..." : steps ? "收起步骤" : "查看步骤"}
+          </button>
+        ) : null}
+      </div>
+      {steps && steps.length > 0 ? (
+        <div className="agent-steps-timeline">
+          {steps.map((step, i) => (
+            <div className="agent-step" key={i}>
+              <span className="agent-step__index">#{step.stepIndex + 1}</span>
+              <span className="agent-step__action">{step.action}</span>
+              <span className="agent-step__latency">{step.latencyMs}ms</span>
+              {step.reasoning ? <span className="agent-step__reason muted-text">{step.reasoning}</span> : null}
+              {step.error ? <span className="agent-step__error">❌ {step.error}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CasesPage() {
   const {
     filters,
@@ -49,6 +206,23 @@ export default function CasesPage() {
   } = usePagedList(fetchAdminCases, initialFilters);
   const [detail, setDetail] = useState(null);
   const [resolveForm, setResolveForm] = useState({ resolution: "completed", note: "" });
+  const [actionLoading, setActionLoading] = useState(false);
+  const [confirmApprove, setConfirmApprove] = useState(false);
+
+  // Auto-refresh detail when case is under investigation
+  const pollRef = useRef(null);
+  useEffect(() => {
+    const isInvestigating = detail?.case?.status === "investigating" ||
+      (detail?.agentRun && (detail.agentRun.status === "pending" || detail.agentRun.status === "running"));
+    if (isInvestigating && detail?.case?.id) {
+      pollRef.current = setInterval(() => {
+        fetchAdminCaseDetail(detail.case.id)
+          .then(setDetail)
+          .catch(() => {}); // silently ignore poll errors
+      }, 5000);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [detail?.case?.id, detail?.case?.status, detail?.agentRun?.status]);
 
   async function openDetail(id) {
     try {
@@ -72,6 +246,59 @@ export default function CasesPage() {
     }
   }
 
+  async function handleInvestigate() {
+    if (!detail?.case?.id) return;
+    setActionLoading(true);
+    try {
+      await investigateCase(detail.case.id);
+      await openDetail(detail.case.id);
+      await refreshList();
+    } catch (err) {
+      setError(err.message || "触发调查失败");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleApproveDecision() {
+    if (!detail?.decision?.id) return;
+    setActionLoading(true);
+    try {
+      await reviewCaseDecision(detail.case.id, {
+        decisionId: detail.decision.id,
+        approve: true,
+        adminId: getSession()?.user?.id || "",
+        comment: "",
+      });
+      setConfirmApprove(false);
+      await openDetail(detail.case.id);
+      await refreshList();
+    } catch (err) {
+      setError(err.message || "批准失败");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleRejectDecision(comment) {
+    if (!detail?.decision?.id) return;
+    setActionLoading(true);
+    try {
+      await reviewCaseDecision(detail.case.id, {
+        decisionId: detail.decision.id,
+        approve: false,
+        adminId: getSession()?.user?.id || "",
+        comment,
+      });
+      await openDetail(detail.case.id);
+      await refreshList();
+    } catch (err) {
+      setError(err.message || "驳回失败");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   return (
     <div className="management-shell">
       <section className="panel panel-scroll">
@@ -92,6 +319,8 @@ export default function CasesPage() {
           <select value={filters.status} onChange={(event) => updateFilters({ status: event.target.value })}>
             <option value="">全部状态</option>
             <option value="open">待处理</option>
+            <option value="investigating">调查中</option>
+            <option value="under_review">待审批</option>
             <option value="in_review">处理中</option>
             <option value="resolved">已结案</option>
           </select>
@@ -207,6 +436,23 @@ export default function CasesPage() {
                 </div>
               </div>
 
+              <AgentRunStatus agentRun={detail.agentRun} />
+
+              <DecisionCard
+                decision={detail.decision}
+                loading={actionLoading}
+                onApprove={() => setConfirmApprove(true)}
+                onReject={handleRejectDecision}
+              />
+
+              {detail.case.status === "open" && !detail.agentRun && !detail.decision ? (
+                <div className="detail-block">
+                  <button className="secondary-button" disabled={actionLoading} onClick={handleInvestigate}>
+                    触发 Agent 调查
+                  </button>
+                </div>
+              ) : null}
+
               {detail.case.status !== "resolved" ? (
                 <form className="resolve-form" onSubmit={handleResolve}>
                   <div className="detail-label">管理员结案</div>
@@ -244,6 +490,30 @@ export default function CasesPage() {
           </div>
         )}
       </aside>
+
+      <Modal
+        open={confirmApprove}
+        title="确认批准"
+        onClose={() => setConfirmApprove(false)}
+        width={520}
+        footer={
+          <div className="modal-buttons">
+            <button className="primary-button" disabled={actionLoading} onClick={handleApproveDecision}>确认批准</button>
+            <button className="secondary-button" onClick={() => setConfirmApprove(false)}>取消</button>
+          </div>
+        }
+      >
+        <p>以下操作将被执行：</p>
+        <ul className="action-list">
+          {(() => {
+            try {
+              return JSON.parse(detail?.decision?.actions || "[]").map((act, i) => (
+                <li key={i}>{getActionLabel(act.action)}{act.amount ? ` (${act.amount}分)` : ""}{act.reason ? ` — ${act.reason}` : ""}</li>
+              ));
+            } catch { return <li>无法解析操作列表</li>; }
+          })()}
+        </ul>
+      </Modal>
     </div>
   );
 }
