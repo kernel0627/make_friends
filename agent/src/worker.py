@@ -24,7 +24,7 @@ import os
 import signal
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FutureTimeoutError
 from typing import Any
 
 import redis
@@ -44,6 +44,8 @@ GROUP_NAME = "agent-workers"
 MAX_RETRIES = 3
 # If a message has been pending longer than this, claim it (seconds)
 CLAIM_TIMEOUT_MS = 10 * 60 * 1000  # 10 minutes
+# Maximum time to wait for a single investigation to complete (seconds)
+INVESTIGATION_TIMEOUT = int(os.environ.get("AGENT_INVESTIGATION_TIMEOUT", "300"))
 SHUTDOWN = False
 
 
@@ -67,7 +69,10 @@ def ensure_consumer_group(r: redis.Redis) -> None:
 
 
 def process_task(task: dict[str, Any], config) -> None:
-    """Process a single investigation task."""
+    """Process a single investigation task.
+
+    Raises TimeoutError if the investigation exceeds INVESTIGATION_TIMEOUT.
+    """
     case_id = task.get("caseId", "")
     run_id = task.get("runId", "")
 
@@ -98,8 +103,22 @@ def process_task(task: dict[str, Any], config) -> None:
         elapsed = time.time() - start
         logger.exception(f"Investigation crashed: case={case_id} ({elapsed:.1f}s)")
         _rollback_case_status(config, case_id)
+        _mark_run_failed(config, run_id, f"crashed: {e}")
     finally:
         os.environ.pop("AGENT_RUN_ID", None)
+
+
+def _mark_run_failed(config, run_id: str, error_msg: str) -> None:
+    """Mark the agent run as failed in the backend."""
+    if not run_id:
+        return
+    try:
+        from .client import BackendClient
+        client = BackendClient(config)
+        client.update_run(run_id, status="failed", errorMsg=error_msg)
+        client.close()
+    except Exception as e:
+        logger.warning(f"Failed to mark run as failed: {e}")
 
 
 def _rollback_case_status(config, case_id: str) -> None:
@@ -184,9 +203,37 @@ def main() -> int:
 
     # Worker loop
     executor = ThreadPoolExecutor(max_workers=concurrency)
-    active_futures: list[tuple[str, Future]] = []  # (msg_id, future)
+    active_futures: list[tuple[str, dict, float, Future]] = []  # (msg_id, task_data, start_time, future)
 
     logger.info(f"Listening on stream '{STREAM_KEY}' group '{GROUP_NAME}'...")
+
+    # --- Startup recovery: process our own pending messages ---
+    # If this consumer crashed previously, it may have messages in its pending
+    # list that were read but never ACKed. Read them with id=0.
+    try:
+        pending_msgs = r.xreadgroup(
+            GROUP_NAME, consumer_name,
+            {STREAM_KEY: "0"},
+            count=10,
+        )
+        if pending_msgs:
+            for _, msg_list in pending_msgs:
+                for msg_id, fields in msg_list:
+                    if not fields:
+                        # Empty fields means the message was already ACKed
+                        continue
+                    msg_id_str = msg_id.decode() if isinstance(msg_id, bytes) else msg_id
+                    task_data = {
+                        (k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v)
+                        for k, v in fields.items()
+                    }
+                    logger.info(f"Recovering pending task: id={msg_id_str} data={task_data}")
+                    future = executor.submit(process_task, task_data, config)
+                    active_futures.append((msg_id_str, task_data, time.time(), future))
+            if active_futures:
+                logger.info(f"Recovered {len(active_futures)} pending tasks from previous session")
+    except redis.ResponseError as e:
+        logger.warning(f"Failed to recover pending messages: {e}")
 
     # Track last time we checked for stale messages
     last_claim_check = 0.0
@@ -194,17 +241,28 @@ def main() -> int:
     while not SHUTDOWN:
         # Clean up completed futures and ACK their messages
         still_active = []
-        for msg_id, future in active_futures:
+        for msg_id, task_data, start_time, future in active_futures:
             if future.done():
                 # Task finished — ACK the message
                 try:
                     r.xack(STREAM_KEY, GROUP_NAME, msg_id)
                 except redis.ConnectionError:
                     logger.warning(f"Failed to ACK {msg_id}, will retry")
-                    still_active.append((msg_id, future))
+                    still_active.append((msg_id, task_data, start_time, future))
                     continue
+            elif time.time() - start_time > INVESTIGATION_TIMEOUT:
+                # Task timed out — mark as failed but do NOT ACK
+                # (leave in pending list so it can be claimed/retried or dead-lettered)
+                case_id = task_data.get("caseId", "")
+                run_id = task_data.get("runId", "")
+                logger.error(f"Investigation timed out ({INVESTIGATION_TIMEOUT}s): case={case_id} run={run_id}")
+                _rollback_case_status(config, case_id)
+                _mark_run_failed(config, run_id, f"timed out after {INVESTIGATION_TIMEOUT}s")
+                # Cancel the future (best effort, thread may still be running)
+                future.cancel()
+                # Don't ACK — let the message stay in pending for dead-letter handling
             else:
-                still_active.append((msg_id, future))
+                still_active.append((msg_id, task_data, start_time, future))
         active_futures = still_active
 
         # If at capacity, wait
@@ -219,7 +277,7 @@ def main() -> int:
             claimed = claim_stale_messages(r, consumer_name)
             for msg_id, task_data in claimed:
                 future = executor.submit(process_task, task_data, config)
-                active_futures.append((msg_id, future))
+                active_futures.append((msg_id, task_data, time.time(), future))
 
         # Read new messages from the stream
         try:
@@ -253,21 +311,26 @@ def main() -> int:
 
                 logger.info(f"Received task: id={msg_id_str} data={task_data}")
                 future = executor.submit(process_task, task_data, config)
-                active_futures.append((msg_id_str, future))
+                active_futures.append((msg_id_str, task_data, time.time(), future))
 
-    # Graceful shutdown: wait for in-flight tasks and ACK them
-    logger.info(f"Waiting for {len(active_futures)} in-flight tasks to complete...")
-    for msg_id, future in active_futures:
+    # Graceful shutdown: wait briefly for in-flight tasks, only ACK completed ones
+    logger.info(f"Waiting for {len(active_futures)} in-flight tasks to complete (max 30s)...")
+    shutdown_deadline = time.time() + 30
+    for msg_id, task_data, start_time, future in active_futures:
+        remaining = max(0, shutdown_deadline - time.time())
         try:
-            future.result(timeout=300)
-        except Exception as e:
-            logger.error(f"Task {msg_id} error during shutdown: {e}")
-        try:
-            r.xack(STREAM_KEY, GROUP_NAME, msg_id)
-        except Exception:
-            pass
+            future.result(timeout=remaining)
+            # Completed — safe to ACK
+            try:
+                r.xack(STREAM_KEY, GROUP_NAME, msg_id)
+            except Exception:
+                pass
+        except (FutureTimeoutError, Exception) as e:
+            # Not completed in time or crashed — do NOT ACK, leave in pending list
+            case_id = task_data.get("caseId", "")
+            logger.warning(f"Shutdown: task {msg_id} (case={case_id}) not complete, leaving in pending list")
 
-    executor.shutdown(wait=True)
+    executor.shutdown(wait=False)
     logger.info("Worker shut down cleanly")
     return 0
 

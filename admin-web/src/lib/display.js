@@ -17,6 +17,8 @@ export const POST_STATUS_LABELS = {
 export const CASE_STATUS_LABELS = {
   open: "待处理",
   in_review: "处理中",
+  investigating: "调查中",
+  under_review: "待审批",
   resolved: "已结案",
 };
 
@@ -99,6 +101,8 @@ export function getUserStatusTone(user) {
 export function getCaseStatusTone(value) {
   if (value === "resolved") return "status-resolved";
   if (value === "in_review") return "status-in_review";
+  if (value === "investigating") return "status-investigating";
+  if (value === "under_review") return "status-under_review";
   return "status-open";
 }
 

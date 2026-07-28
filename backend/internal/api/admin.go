@@ -31,8 +31,17 @@ type adminCaseDetail struct {
 	Reporter         *model.User                      `json:"reporter,omitempty"`
 	Resolver         *model.User                      `json:"resolver,omitempty"`
 	Settlement       *model.PostParticipantSettlement `json:"settlement,omitempty"`
+	Decision         *model.CaseDecision              `json:"decision,omitempty"`
+	AgentRun         *adminAgentRunSummary             `json:"agentRun,omitempty"`
 	Timeline         []adminCaseTimelineItem          `json:"timeline"`
 	CreditComparison adminCaseCreditComparison        `json:"creditComparison"`
+}
+
+type adminAgentRunSummary struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	StepCount int    `json:"stepCount"`
+	StartedAt int64  `json:"startedAt"`
 }
 
 type adminCaseResolveReq struct {
@@ -277,6 +286,26 @@ func (s *Server) GetAdminCase(c *gin.Context) {
 			payload.Settlement = &settlement
 		}
 	}
+
+	// Fetch latest CaseDecision for this case (proposed or executed)
+	var decision model.CaseDecision
+	if err := s.DB.Where("case_id = ?", caseID).Order("created_at DESC").First(&decision).Error; err == nil {
+		payload.Decision = &decision
+	}
+
+	// Fetch agent run summary if the case has one
+	if row.AgentRunID != "" {
+		var run model.AgentRun
+		if err := s.DB.First(&run, "id = ?", row.AgentRunID).Error; err == nil {
+			payload.AgentRun = &adminAgentRunSummary{
+				ID:        run.ID,
+				Status:    run.Status,
+				StepCount: run.StepCount,
+				StartedAt: run.StartedAt,
+			}
+		}
+	}
+
 	payload.Timeline = buildAdminCaseTimeline(payload.Case, payload.Settlement)
 	payload.CreditComparison = s.buildAdminCaseCreditComparison(payload.Case, payload.TargetUser, payload.Reporter)
 

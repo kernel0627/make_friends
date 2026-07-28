@@ -208,3 +208,18 @@ export function resetAdminAccountPassword(id, body) {
     body: JSON.stringify(body),
   });
 }
+
+export function investigateCase(id) {
+  return apiRequest(`/api/v1/admin/cases/${id}/investigate`, { method: "POST" });
+}
+
+export function reviewCaseDecision(caseId, body) {
+  return apiRequest(`/api/v1/admin/cases/${caseId}/review-decision`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchAgentRun(id) {
+  return apiRequest(`/api/v1/admin/agent-runs/${id}`);
+}
