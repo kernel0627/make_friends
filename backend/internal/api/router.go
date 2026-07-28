@@ -173,6 +173,7 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 				admin.GET("/reviews", s.ListAdminReviews)
 				// Agent investigation
 				admin.POST("/cases/:id/investigate", s.InvestigateCase)
+				admin.POST("/cases/:id/review-decision", s.adminReviewDecision)
 				admin.GET("/agent-runs", s.ListAgentRuns)
 				admin.GET("/agent-runs/:id", s.GetAgentRun)
 				admin.GET("/admin-users", s.ListAdminAccounts)

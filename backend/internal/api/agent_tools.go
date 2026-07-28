@@ -407,33 +407,43 @@ func (s *Server) agentCreateDecision(c *gin.Context) {
 	evidenceJSON, _ := json.Marshal(req.EvidenceRefs)
 	actionsJSON, _ := json.Marshal(req.Actions)
 
+	// Idempotency: one decision per (case, run) pair
+	idempotencyKey := caseID + ":" + req.RunID
+	if req.RunID == "" {
+		idempotencyKey = caseID + ":" + uuid.NewString()[:8]
+	}
+
 	now := time.Now().UnixMilli()
 	decision := model.CaseDecision{
-		CaseID:       caseID,
-		DeciderID:    deciderID,
-		DecisionType: "initial",
-		Outcome:      req.Outcome,
-		Reasoning:    req.Reasoning,
-		EvidenceRefs: string(evidenceJSON),
-		Actions:      string(actionsJSON),
-		CreatedAt:    now,
+		CaseID:         caseID,
+		DeciderID:      deciderID,
+		DecisionType:   "initial",
+		Outcome:        req.Outcome,
+		Reasoning:      req.Reasoning,
+		EvidenceRefs:   string(evidenceJSON),
+		Actions:        string(actionsJSON),
+		Status:         model.DecisionStatusProposed,
+		IdempotencyKey: idempotencyKey,
+		CreatedAt:      now,
 	}
+
+	// Check idempotency — if this run already produced a decision, return it
+	var existing model.CaseDecision
+	if err := s.DB.First(&existing, "idempotency_key = ?", idempotencyKey).Error; err == nil {
+		c.JSON(http.StatusOK, existing)
+		return
+	}
+
 	if err := s.DB.Create(&decision).Error; err != nil {
 		serverError(c, err)
 		return
 	}
 
-	// Update case status based on outcome
-	caseUpdates := map[string]any{
-		"status":     "resolved",
-		"decision":   req.Outcome,
-		"resolved_at": now,
+	// Update case status to "under_review" (not resolved — awaits admin approval)
+	s.DB.Model(&model.AdminCase{}).Where("id = ?", caseID).Updates(map[string]any{
+		"status":     "under_review",
 		"updated_at": now,
-	}
-	if req.Reasoning != "" {
-		caseUpdates["decision_reason"] = req.Reasoning
-	}
-	s.DB.Model(&model.AdminCase{}).Where("id = ?", caseID).Updates(caseUpdates)
+	})
 
 	c.JSON(http.StatusCreated, decision)
 }

@@ -429,13 +429,24 @@ type CaseEvidence struct {
 
 // CaseDecision records each decision made on a case (supports initial, appeal, reopen).
 type CaseDecision struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
-	CaseID       string `gorm:"size:64;not null;index" json:"caseId"`
-	DeciderID    string `gorm:"size:64;not null;index" json:"deciderId"` // admin user ID or "agent:run_xxx"
-	DecisionType string `gorm:"size:32;not null" json:"decisionType"`    // "initial", "appeal", "reopen"
-	Outcome      string `gorm:"size:32;not null" json:"outcome"`         // "upheld", "rejected", "insufficient_evidence", "escalate"
-	Reasoning    string `gorm:"type:text;not null;default:''" json:"reasoning"`
-	EvidenceRefs string `gorm:"type:text;not null;default:'[]'" json:"evidenceRefs"` // JSON: evidence IDs cited
-	Actions      string `gorm:"type:text;not null;default:'[]'" json:"actions"`      // JSON: backend actions taken
-	CreatedAt    int64  `gorm:"not null;index" json:"createdAt"`
+	ID             uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	CaseID         string `gorm:"size:64;not null;index" json:"caseId"`
+	DeciderID      string `gorm:"size:64;not null;index" json:"deciderId"` // admin user ID or "agent:run_xxx"
+	DecisionType   string `gorm:"size:32;not null" json:"decisionType"`    // "initial", "appeal", "reopen"
+	Outcome        string `gorm:"size:32;not null" json:"outcome"`         // "upheld", "rejected", "insufficient_evidence", "escalate"
+	Reasoning      string `gorm:"type:text;not null;default:''" json:"reasoning"`
+	EvidenceRefs   string `gorm:"type:text;not null;default:'[]'" json:"evidenceRefs"`   // JSON: evidence IDs cited
+	Actions        string `gorm:"type:text;not null;default:'[]'" json:"actions"`         // JSON: proposed or executed actions
+	Status         string `gorm:"size:24;not null;default:'proposed'" json:"status"`      // "proposed", "approved", "rejected", "executed"
+	IdempotencyKey string `gorm:"size:128;not null;default:'';uniqueIndex" json:"idempotencyKey"`
+	ApprovedBy     string `gorm:"size:64;not null;default:''" json:"approvedBy"` // admin user ID who approved
+	ApprovedAt     int64  `gorm:"not null;default:0" json:"approvedAt"`
+	CreatedAt      int64  `gorm:"not null;index" json:"createdAt"`
 }
+
+const (
+	DecisionStatusProposed = "proposed"
+	DecisionStatusApproved = "approved"
+	DecisionStatusRejected = "rejected"
+	DecisionStatusExecuted = "executed"
+)

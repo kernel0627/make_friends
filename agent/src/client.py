@@ -116,9 +116,9 @@ class BackendClient:
 
     def create_decision(self, case_id: str, outcome: str, reasoning: str = "",
                         evidence_refs: list[str] | None = None,
-                        actions: list[str] | None = None,
+                        actions: list[dict[str, Any]] | None = None,
                         run_id: str = "") -> dict[str, Any]:
-        """Record the agent's verdict as a CaseDecision."""
+        """Record the agent's proposed verdict as a CaseDecision (status=proposed)."""
         payload = {
             "outcome": outcome,
             "reasoning": reasoning,

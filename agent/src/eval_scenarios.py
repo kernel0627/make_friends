@@ -105,7 +105,16 @@ def stop_backend(proc: subprocess.Popen):
 
 
 def score_result(truth: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
-    """Score a single agent result against ground truth."""
+    """Score a single agent result against ground truth.
+
+    Metrics:
+      - outcome_correct: exact verdict match
+      - party_correct: responsible party match
+      - policy_recall: fraction of expected policy refs cited
+      - evidence_recall: fraction of required_evidence found in the agent's report/evidence
+      - fabrication_free: no forbidden_claims appear in the agent's output
+      - calibrated: confidence > 0.6 iff outcome is correct
+    """
     scores = {}
 
     # 1. Outcome accuracy (primary metric)
@@ -131,12 +140,83 @@ def score_result(truth: dict[str, Any], result: dict[str, Any]) -> dict[str, Any
     else:
         scores["policy_recall"] = 1.0 if not actual_policies else 0.0
 
-    # 4. Confidence calibration
+    # 4. Evidence recall — check if required evidence types appear in the agent's output
+    required_evidence = truth.get("required_evidence", [])
+    if required_evidence:
+        # Build a searchable text corpus from the agent's report + evidence list
+        corpus = _build_evidence_corpus(result)
+        found = sum(1 for e in required_evidence if _evidence_mentioned(e, corpus))
+        scores["evidence_recall"] = found / len(required_evidence)
+        scores["evidence_found"] = found
+        scores["evidence_required"] = len(required_evidence)
+    else:
+        scores["evidence_recall"] = 1.0
+        scores["evidence_found"] = 0
+        scores["evidence_required"] = 0
+
+    # 5. Fabrication check — forbidden claims must NOT appear in agent output
+    forbidden_claims = truth.get("forbidden_claims", [])
+    if forbidden_claims:
+        corpus = _build_evidence_corpus(result)
+        violations = [claim for claim in forbidden_claims if _claim_present(claim, corpus)]
+        scores["fabrication_free"] = len(violations) == 0
+        scores["fabrication_violations"] = violations
+    else:
+        scores["fabrication_free"] = True
+        scores["fabrication_violations"] = []
+
+    # 6. Confidence calibration
     confidence = result.get("confidence", 0.5)
     scores["confidence"] = confidence
     scores["calibrated"] = (confidence > 0.6) == scores["outcome_correct"]
 
     return scores
+
+
+def _build_evidence_corpus(result: dict[str, Any]) -> str:
+    """Build a text corpus from the agent's output for evidence/claim searches."""
+    parts = []
+    if result.get("report"):
+        parts.append(result["report"])
+    # Evidence list from steps
+    for step in result.get("steps", []):
+        if step.get("output"):
+            parts.append(str(step["output"]))
+        if step.get("reasoning"):
+            parts.append(step["reasoning"])
+    # Policy violations cited
+    for p in result.get("policy_violations", []) or []:
+        parts.append(p)
+    return "\n".join(parts).lower()
+
+
+def _evidence_mentioned(evidence_key: str, corpus: str) -> bool:
+    """Check if an evidence type/key is referenced in the corpus.
+
+    Uses relaxed matching: underscores → spaces, checks for substring.
+    """
+    # Normalize: "chat_commercial_link" → "commercial link", "chat commercial link"
+    normalized = evidence_key.lower().replace("_", " ")
+    if normalized in corpus:
+        return True
+    # Also try underscore form
+    if evidence_key.lower() in corpus:
+        return True
+    # Try individual significant words (length > 3)
+    words = [w for w in normalized.split() if len(w) > 3]
+    if words and all(w in corpus for w in words):
+        return True
+    return False
+
+
+def _claim_present(claim: str, corpus: str) -> bool:
+    """Check if a forbidden claim appears in the corpus."""
+    normalized = claim.lower().replace("_", " ")
+    if normalized in corpus:
+        return True
+    if claim.lower() in corpus:
+        return True
+    return False
 
 
 def find_case_id(client, scenario_id: str) -> str | None:
@@ -237,11 +317,39 @@ def run_eval(manifest: list[dict], config: Config, scenario_filter: str = "") ->
             if r["scores"]["outcome_correct"]:
                 group[key]["correct"] += 1
 
+    # Aggregate new metrics
+    completed_results = [r for r in results if r["status"] == "completed"]
+    avg_evidence_recall = 0.0
+    fabrication_clean = 0
+    avg_policy_recall = 0.0
+    party_correct_count = 0
+    calibrated_count = 0
+
+    for r in completed_results:
+        s = r["scores"]
+        avg_evidence_recall += s.get("evidence_recall", 0.0)
+        avg_policy_recall += s.get("policy_recall", 0.0)
+        if s.get("fabrication_free", True):
+            fabrication_clean += 1
+        if s.get("party_correct", False):
+            party_correct_count += 1
+        if s.get("calibrated", False):
+            calibrated_count += 1
+
+    n = len(completed_results) or 1
+    avg_evidence_recall /= n
+    avg_policy_recall /= n
+
     return {
         "total": total,
-        "completed": sum(1 for r in results if r["status"] == "completed"),
+        "completed": len(completed_results),
         "correct": correct,
         "accuracy": round(accuracy, 3),
+        "evidence_recall": round(avg_evidence_recall, 3),
+        "fabrication_clean_rate": round(fabrication_clean / n, 3),
+        "policy_recall": round(avg_policy_recall, 3),
+        "party_accuracy": round(party_correct_count / n, 3),
+        "calibration_rate": round(calibrated_count / n, 3),
         "by_type": {k: round(v["correct"] / v["total"], 3) for k, v in by_type.items() if v["total"]},
         "by_difficulty": {k: round(v["correct"] / v["total"], 3) for k, v in by_diff.items() if v["total"]},
         "results": results,
@@ -297,6 +405,12 @@ def main():
         print(f"{'='*60}")
         print(f"  Completed: {summary['completed']}/{summary['total']}")
         print(f"  Accuracy:  {summary['correct']}/{summary['completed']} ({summary['accuracy']:.1%})")
+        print(f"\n  Extended metrics:")
+        print(f"    Evidence recall:    {summary['evidence_recall']:.1%}")
+        print(f"    Fabrication-free:   {summary['fabrication_clean_rate']:.1%}")
+        print(f"    Policy recall:      {summary['policy_recall']:.1%}")
+        print(f"    Party accuracy:     {summary['party_accuracy']:.1%}")
+        print(f"    Calibration:        {summary['calibration_rate']:.1%}")
         if summary["by_type"]:
             print(f"\n  By case type:")
             for t, acc in summary["by_type"].items():

@@ -1,11 +1,10 @@
 package api
 
 import (
-	"bufio"
-	"fmt"
+	"context"
+	"encoding/json"
 	"log"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -20,8 +19,21 @@ import (
 // These endpoints let the admin frontend trigger agent investigations
 // and view investigation history.
 
+// Redis queue key for agent investigation tasks.
+const agentTaskQueue = "agent:tasks"
+
+// AgentTask is the JSON payload pushed to the Redis queue.
+type AgentTask struct {
+	CaseID string `json:"caseId"`
+	RunID  string `json:"runId"`
+}
+
 // InvestigateCase triggers an async agent investigation for the given case.
 // POST /api/v1/admin/cases/:id/investigate
+//
+// Dispatch modes:
+//   - Redis enabled (USE_REDIS=true): LPUSH task to agent:tasks queue
+//   - Redis disabled: falls back to goroutine log warning (no execution)
 func (s *Server) InvestigateCase(c *gin.Context) {
 	caseID := c.Param("id")
 
@@ -65,9 +77,24 @@ func (s *Server) InvestigateCase(c *gin.Context) {
 	s.DB.Model(&model.AdminCase{}).Where("id = ?", caseID).
 		Update("agent_run_id", runID)
 
-	// Launch Python agent as a subprocess (async)
-	go s.execAgentInvestigation(caseID, runID)
+	// Dispatch to Redis queue
+	task := AgentTask{CaseID: caseID, RunID: runID}
+	if err := s.enqueueAgentTask(task); err != nil {
+		log.Printf("[agent] failed to enqueue task: %v (case=%s run=%s)", err, caseID, runID)
+		// Mark run as failed since we can't dispatch
+		s.DB.Model(&model.AgentRun{}).Where("id = ?", runID).Updates(map[string]any{
+			"status":       model.AgentRunFailed,
+			"error_msg":    "failed to enqueue: " + err.Error(),
+			"completed_at": time.Now().UnixMilli(),
+		})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "agent queue unavailable",
+			"runId": runID,
+		})
+		return
+	}
 
+	log.Printf("[agent] enqueued investigation case=%s run=%s", caseID, runID)
 	c.JSON(http.StatusAccepted, gin.H{
 		"runId":  runID,
 		"caseId": caseID,
@@ -75,77 +102,25 @@ func (s *Server) InvestigateCase(c *gin.Context) {
 	})
 }
 
-// execAgentInvestigation runs the Python agent CLI in a subprocess.
-// It captures output and updates the run record on failure.
-func (s *Server) execAgentInvestigation(caseID, runID string) {
-	// The Python agent will create its own run record and manage status,
-	// but we already created a placeholder. The agent's runner.py calls
-	// create_run which will get a UNIQUE conflict — so we pass the run_id
-	// as env so it can reuse ours.
-	secret := strings.TrimSpace(envStr("AGENT_API_SECRET", ""))
-	addr := strings.TrimSpace(envStr("BACKEND_ADDR", ":8080"))
-
-	// Determine the backend URL the agent should call back to
-	backendURL := fmt.Sprintf("http://localhost%s", addr)
-	if !strings.Contains(addr, ":") {
-		backendURL = fmt.Sprintf("http://localhost:%s", addr)
+// enqueueAgentTask pushes a task to the Redis agent queue.
+func (s *Server) enqueueAgentTask(task AgentTask) error {
+	if !s.UseRedis || s.RedisClient == nil {
+		return errRedisNotAvailable
 	}
-
-	cmd := exec.Command(
-		"conda", "run", "-n", "agent", "--no-banner",
-		"python", "-m", "agent.src.cli", "investigate",
-		"--case-id", caseID,
-	)
-	cmd.Env = append(cmd.Environ(),
-		"AGENT_BACKEND_URL="+backendURL,
-		"AGENT_API_SECRET="+secret,
-		"AGENT_RUN_ID="+runID,
-	)
-	// Set working directory to project root (parent of backend/)
-	cmd.Dir = projectRoot()
-
-	// Capture stderr for logging
-	stderr, _ := cmd.StderrPipe()
-
-	log.Printf("[agent] starting investigation case=%s run=%s", caseID, runID)
-	if err := cmd.Start(); err != nil {
-		log.Printf("[agent] failed to start: %v", err)
-		s.DB.Model(&model.AgentRun{}).Where("id = ?", runID).Updates(map[string]any{
-			"status":       model.AgentRunFailed,
-			"error_msg":    fmt.Sprintf("failed to start agent process: %v", err),
-			"completed_at": time.Now().UnixMilli(),
-		})
-		return
+	payload, err := json.Marshal(task)
+	if err != nil {
+		return err
 	}
-
-	// Log stderr in background
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			log.Printf("[agent:%s] %s", runID[:12], scanner.Text())
-		}
-	}()
-
-	if err := cmd.Wait(); err != nil {
-		log.Printf("[agent] process exited with error: %v (run=%s)", err, runID)
-		// Only mark as failed if it's still pending (agent may have updated it)
-		s.DB.Model(&model.AgentRun{}).
-			Where("id = ? AND status IN ?", runID, []string{model.AgentRunPending}).
-			Updates(map[string]any{
-				"status":       model.AgentRunFailed,
-				"error_msg":    fmt.Sprintf("agent process exited: %v", err),
-				"completed_at": time.Now().UnixMilli(),
-			})
-		return
-	}
-	log.Printf("[agent] investigation completed case=%s run=%s", caseID, runID)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return s.RedisClient.LPush(ctx, agentTaskQueue, payload).Err()
 }
 
-// projectRoot returns the project root directory (parent of backend/).
-func projectRoot() string {
-	// This binary runs from backend/, so go up one level
-	return envStr("PROJECT_ROOT", "..")
-}
+var errRedisNotAvailable = &agentQueueError{msg: "Redis not available; enable USE_REDIS=true to use agent queue"}
+
+type agentQueueError struct{ msg string }
+
+func (e *agentQueueError) Error() string { return e.msg }
 
 // ListAgentRuns returns paginated agent runs, optionally filtered by case_id.
 // GET /api/v1/admin/agent-runs

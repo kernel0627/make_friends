@@ -65,24 +65,24 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
                 reasoning=step.get("reasoning", ""),
             )
 
-        # Write decision to backend
+        # Write decision to backend (proposed only — admin must approve)
         verdict = final_state.get("verdict", "insufficient_evidence")
         reasoning = ""
         if final_state.get("report"):
             # Use first 2000 chars of report as reasoning
             reasoning = final_state["report"][:2000]
+
+        # Build proposed actions based on verdict + case type
+        proposed_actions = _build_proposed_actions(final_state)
+        final_state["proposed_actions"] = proposed_actions
+
         client.create_decision(
             case_id,
             outcome=verdict,
             reasoning=reasoning,
             run_id=run_id,
+            actions=proposed_actions,
         )
-
-        # Execute remediation actions based on verdict
-        actions_taken = _execute_actions(
-            client, case_id, run_id, final_state, config
-        )
-        final_state["actions_taken"] = actions_taken
 
         # Mark completed
         client.update_run(
@@ -104,51 +104,46 @@ def run_investigation(case_id: str, config: Config | None = None, use_llm: bool 
         client.close()
 
 
-# --- Action execution logic ---
+# --- Proposed actions logic ---
 
-# Maps (case_type, outcome) → list of actions to take
+# Maps (case_type, outcome) → list of actions to propose
 _ACTION_MAP: dict[tuple[str, str], list[dict[str, Any]]] = {
     # Content report upheld → take down post + penalize author
     ("content_report", "upheld"): [
-        {"action": "post_takedown", "reason": "内容违规，Agent 自动下架"},
-        {"action": "credit_deduct", "amount": -5, "reason": "发布违规内容，扣除信用分"},
+        {"action": "post_takedown", "reason": "内容违规，建议下架"},
+        {"action": "credit_deduct", "amount": -5, "reason": "发布违规内容，建议扣除信用分"},
     ],
     # Content report rejected → no action (reporter was wrong)
     ("content_report", "rejected"): [],
 
     # Settlement dispute upheld → penalize the responsible party
     ("settlement_dispute", "upheld"): [
-        {"action": "credit_deduct", "amount": -5, "reason": "结算纠纷裁定有过错，扣除信用分"},
+        {"action": "credit_deduct", "amount": -5, "reason": "结算纠纷裁定有过错，建议扣除信用分"},
     ],
     # Settlement dispute rejected → no action
     ("settlement_dispute", "rejected"): [],
 
     # Moderation appeal upheld → restore the post
     ("moderation_appeal", "upheld"): [
-        {"action": "post_restore", "reason": "申诉成立，恢复帖子"},
+        {"action": "post_restore", "reason": "申诉成立，建议恢复帖子"},
     ],
     # Moderation appeal rejected → no action (original decision was correct)
     ("moderation_appeal", "rejected"): [],
 
     # Credit appeal upheld → restore credit
     ("credit_appeal", "upheld"): [
-        {"action": "credit_restore", "reason": "信用分申诉成立，撤销扣分"},
+        {"action": "credit_restore", "reason": "信用分申诉成立，建议撤销扣分"},
     ],
     # Credit appeal rejected → no action
     ("credit_appeal", "rejected"): [],
 }
 
 
-def _execute_actions(
-    client: "BackendClient",
-    case_id: str,
-    run_id: str,
-    final_state: dict[str, Any],
-    config: "Config",
-) -> list[str]:
-    """Execute remediation actions based on verdict + case type.
+def _build_proposed_actions(final_state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build a list of proposed actions based on verdict + case type.
 
-    Returns list of action names that were successfully executed.
+    These actions are NOT executed — they are written into the CaseDecision
+    for admin review. The admin approval endpoint will execute them.
     """
     verdict = final_state.get("verdict", "insufficient_evidence")
     case_data = final_state.get("case_data", {})
@@ -158,10 +153,8 @@ def _execute_actions(
     # Determine target for credit actions
     target_user_id = ""
     if responsible_party == "author":
-        # Author is the target user in the case (for most case types)
         target_user_id = case_data.get("targetUserId", "")
     elif responsible_party == "participant":
-        # If participant is responsible, they might be the reporter
         target_user_id = case_data.get("reporterUserId", "")
     elif responsible_party == "reporter":
         target_user_id = case_data.get("reporterUserId", "")
@@ -170,30 +163,21 @@ def _execute_actions(
     planned_actions = _ACTION_MAP.get(actions_key, [])
 
     if not planned_actions:
-        logger.info(f"No actions for ({case_type}, {verdict})")
         return []
 
-    executed = []
+    result = []
     for action_spec in planned_actions:
         action_name = action_spec["action"]
-        try:
-            # Determine target_id based on action type
-            target_id = ""
-            if action_name in ("credit_deduct", "credit_restore"):
-                target_id = target_user_id
-            # post_restore and post_takedown use the case's postID (default in backend)
+        entry: dict[str, Any] = {
+            "action": action_name,
+            "reason": action_spec.get("reason", ""),
+        }
+        if action_name in ("credit_deduct", "credit_restore"):
+            entry["targetId"] = target_user_id
+            if "amount" in action_spec:
+                entry["amount"] = action_spec["amount"]
+        # post_restore / post_takedown use the case's postID (backend default)
+        result.append(entry)
 
-            client.execute_action(
-                case_id=case_id,
-                action=action_name,
-                run_id=run_id,
-                target_id=target_id,
-                amount=action_spec.get("amount", 0),
-                reason=action_spec.get("reason", ""),
-            )
-            executed.append(action_name)
-            logger.info(f"Action executed: {action_name} (case={case_id})")
-        except Exception as e:
-            logger.warning(f"Action {action_name} failed: {e}")
-
-    return executed
+    logger.info(f"Built {len(result)} proposed actions for ({case_type}, {verdict})")
+    return result
