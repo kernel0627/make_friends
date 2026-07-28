@@ -807,6 +807,65 @@ textarea {
   to { transform: rotate(360deg); }
 }
 
+.link-button {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.link-button:hover { color: #1d4ed8; }
+
+.agent-steps-timeline {
+  margin-top: 10px;
+  border-left: 2px solid #e2e8f0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.agent-step__index {
+  font-weight: 600;
+  color: #64748b;
+  min-width: 24px;
+}
+
+.agent-step__action {
+  font-family: monospace;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.agent-step__latency {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.agent-step__reason {
+  flex-basis: 100%;
+  padding-left: 32px;
+  font-size: 12px;
+}
+
+.agent-step__error {
+  color: #dc2626;
+  font-size: 12px;
+}
+
 .modal-buttons {
   display: flex;
   gap: 10px;

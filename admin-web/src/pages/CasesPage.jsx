@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PaginationBar from "../components/PaginationBar";
 import Modal from "../components/Modal";
-import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase, investigateCase, reviewCaseDecision } from "../lib/api";
+import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase, investigateCase, reviewCaseDecision, fetchAgentRun } from "../lib/api";
 import { getSession } from "../lib/session";
 import usePagedList from "../lib/usePagedList";
 import {
@@ -9,6 +9,7 @@ import {
   getCaseStatusLabel,
   getCaseStatusTone,
   getSettlementDecisionLabel,
+  getActionLabel,
 } from "../lib/display";
 import { formatDateTime, formatDelta } from "../lib/format";
 
@@ -36,17 +37,6 @@ function ComparisonCard({ title, item }) {
       </div>
     </div>
   );
-}
-
-const ACTION_LABELS = {
-  credit_deduct: "扣除信誉分",
-  credit_restore: "恢复信誉分",
-  post_takedown: "下架帖子",
-  post_restore: "恢复帖子",
-};
-
-function getActionLabel(action) {
-  return ACTION_LABELS[action] || action || "未知操作";
 }
 
 function ConfidenceBar({ value }) {
@@ -152,6 +142,9 @@ function DecisionCard({ decision, onApprove, onReject, loading: actionLoading })
 
 function AgentRunStatus({ agentRun }) {
   if (!agentRun) return null;
+  const [steps, setSteps] = useState(null);
+  const [stepsLoading, setStepsLoading] = useState(false);
+
   const statusLabel = {
     pending: "等待调查",
     running: "调查中",
@@ -159,6 +152,17 @@ function AgentRunStatus({ agentRun }) {
     failed: "调查失败",
   };
   const isRunning = agentRun.status === "pending" || agentRun.status === "running";
+
+  async function loadSteps() {
+    if (steps) { setSteps(null); return; } // toggle
+    setStepsLoading(true);
+    try {
+      const data = await fetchAgentRun(agentRun.id);
+      setSteps(data.steps || []);
+    } catch { setSteps([]); }
+    setStepsLoading(false);
+  }
+
   return (
     <div className="detail-block agent-run-status">
       <div className="detail-label">Agent 调查状态</div>
@@ -166,7 +170,25 @@ function AgentRunStatus({ agentRun }) {
         {isRunning ? <span className="spinner" /> : null}
         <span className={`status-tag status-${agentRun.status}`}>{statusLabel[agentRun.status] || agentRun.status}</span>
         {agentRun.stepCount > 0 ? <span className="muted-text">已完成 {agentRun.stepCount} 步</span> : null}
+        {agentRun.status === "completed" || agentRun.status === "failed" ? (
+          <button className="link-button" onClick={loadSteps}>
+            {stepsLoading ? "加载中..." : steps ? "收起步骤" : "查看步骤"}
+          </button>
+        ) : null}
       </div>
+      {steps && steps.length > 0 ? (
+        <div className="agent-steps-timeline">
+          {steps.map((step, i) => (
+            <div className="agent-step" key={i}>
+              <span className="agent-step__index">#{step.stepIndex + 1}</span>
+              <span className="agent-step__action">{step.action}</span>
+              <span className="agent-step__latency">{step.latencyMs}ms</span>
+              {step.reasoning ? <span className="agent-step__reason muted-text">{step.reasoning}</span> : null}
+              {step.error ? <span className="agent-step__error">❌ {step.error}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

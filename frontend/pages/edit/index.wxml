@@ -1,5 +1,9 @@
 <view class="page-wrapper" wx:if="{{isLoggedIn}}">
   <scroll-view scroll-y class="page">
+    <view class="section moderation-notice">
+      <text class="moderation-notice__text">保存修改后，活动将重新进入审核流程。审核通过前其他人将暂时无法看到此活动。</text>
+    </view>
+
     <view class="section">
       <view class="field-label">活动标题</view>
       <input class="field-input {{errors.title ? 'error' : ''}}" value="{{title}}" placeholder="请输入活动标题" bindinput="onTitleInput" />
