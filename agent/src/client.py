@@ -96,8 +96,21 @@ class BackendClient:
         return r.json().get("ledgers", [])
 
     def get_policy(self, policy_id: str) -> str:
-        """Returns the raw YAML content of a policy file."""
+        """Returns the raw YAML content of a policy file.
+
+        Raises ValueError with a human-readable message if the policy_id
+        does not exist (404), so the LLM gets clear feedback.
+        """
         r = self._client.get(f"/internal/agent/policy/{policy_id}")
+        if r.status_code == 404:
+            valid_ids = [
+                "content_commercial", "content_off_platform",
+                "settlement_no_show", "settlement_material_change",
+                "credit_reversal",
+            ]
+            raise ValueError(
+                f"政策 '{policy_id}' 不存在。可用的 policy_id: {', '.join(valid_ids)}"
+            )
         r.raise_for_status()
         return r.text
 

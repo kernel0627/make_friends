@@ -300,6 +300,9 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
                 data = client.get_policy(policy_id)
                 evidence.append({"type": f"policy:{policy_id}", "data": data})
                 tool_output = _truncate_output(data)
+            else:
+                tool_error = "get_policy 需要 policy_id 参数。可选值: content_commercial, content_off_platform, settlement_no_show, settlement_material_change, credit_reversal"
+                tool_output = json.dumps({"error": tool_error})
         else:
             logger.warning(f"Unknown action: {action}, treating as done")
             action = "done"
@@ -324,7 +327,18 @@ def investigate_llm(state: dict[str, Any], config: Config | None = None) -> dict
         step_record["error"] = tool_error
     steps.append(step_record)
 
-    return {"evidence": evidence, "steps": steps, "step_count": step_count + 1}
+    # Report progress to backend so admin-web can show live step count
+    new_step_count = step_count + 1
+    run_id = state.get("run_id", "")
+    if run_id:
+        try:
+            progress_client = BackendClient(config)
+            progress_client.update_run(run_id, stepCount=new_step_count)
+            progress_client.close()
+        except Exception as e:
+            logger.debug(f"Progress update failed (non-fatal): {e}")
+
+    return {"evidence": evidence, "steps": steps, "step_count": new_step_count}
 
 
 def should_continue_llm(state: dict[str, Any]) -> str:
