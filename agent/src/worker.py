@@ -32,11 +32,43 @@ import redis
 from .config import load_config
 from .runner import run_investigation
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    stream=sys.stderr,
-)
+
+class JSONFormatter(logging.Formatter):
+    """Structured JSON log formatter for production log aggregation."""
+
+    def format(self, record):
+        entry = {
+            "ts": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        # Merge extra fields from logger.info("msg", extra={...})
+        for key in ("model", "latency_ms", "tokens_in", "tokens_out", "content_len",
+                    "case_id", "run_id", "step_count", "verdict"):
+            val = getattr(record, key, None)
+            if val is not None:
+                entry[key] = val
+        if record.exc_info and record.exc_info[0]:
+            entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(entry, ensure_ascii=False)
+
+
+def _configure_logging():
+    """Set up logging — JSON format if LOG_FORMAT=json, text otherwise."""
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stderr)
+    if os.environ.get("LOG_FORMAT", "").lower() == "json":
+        handler.setFormatter(JSONFormatter())
+    else:
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        ))
+    root.addHandler(handler)
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 STREAM_KEY = "agent:tasks"
