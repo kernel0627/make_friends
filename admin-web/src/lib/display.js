@@ -121,3 +121,46 @@ export function mapPostStatusName(value) {
 export function mapCaseStatusName(value) {
   return CASE_STATUS_LABELS[value] || value || "-";
 }
+
+// --- Agent Decision Display ---
+
+export const DECISION_OUTCOME_LABELS = {
+  upheld: "举报/投诉成立",
+  rejected: "举报/投诉不成立",
+  insufficient_evidence: "证据不足",
+  escalate: "需升级处理",
+};
+
+export const DECISION_STATUS_LABELS = {
+  proposed: "待审批",
+  approved: "已批准",
+  rejected: "已驳回",
+  executed: "已执行",
+};
+
+export const ACTION_LABELS = {
+  credit_deduct: "扣除信誉分",
+  credit_restore: "恢复信誉分",
+  post_takedown: "下架帖子",
+  post_restore: "恢复帖子",
+};
+
+export function getDecisionOutcomeLabel(value) {
+  return DECISION_OUTCOME_LABELS[value] || value || "-";
+}
+
+export function getDecisionStatusLabel(value) {
+  return DECISION_STATUS_LABELS[value] || value || "-";
+}
+
+export function getActionLabel(action) {
+  return ACTION_LABELS[action] || action || "未知操作";
+}
+
+export function formatAction(act) {
+  const label = getActionLabel(act.action);
+  const parts = [label];
+  if (act.amount) parts.push(`${act.amount} 分`);
+  if (act.reason) parts.push(`— ${act.reason}`);
+  return parts.join(" ");
+}

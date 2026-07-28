@@ -209,8 +209,10 @@ export function resetAdminAccountPassword(id, body) {
   });
 }
 
-export function investigateCase(id) {
-  return apiRequest(`/api/v1/admin/cases/${id}/investigate`, { method: "POST" });
+export function investigateCase(caseId) {
+  return apiRequest(`/api/v1/admin/cases/${caseId}/investigate`, {
+    method: "POST",
+  });
 }
 
 export function reviewCaseDecision(caseId, body) {
