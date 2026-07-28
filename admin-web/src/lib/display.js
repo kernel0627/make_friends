@@ -5,6 +5,8 @@ export const ROLE_LABELS = {
 
 export const USER_STATUS_LABELS = {
   active: "正常",
+  suspended: "已暂停",
+  banned: "已封禁",
   deleted: "已删除",
 };
 
@@ -58,7 +60,11 @@ export function getRoleLabel(value) {
 }
 
 export function getUserStatusLabel(user) {
-  return user && Number(user.deletedAt) > 0 ? USER_STATUS_LABELS.deleted : USER_STATUS_LABELS.active;
+  if (!user) return "-";
+  if (Number(user.deletedAt) > 0) return USER_STATUS_LABELS.deleted;
+  if (user.status === "banned") return USER_STATUS_LABELS.banned;
+  if (user.status === "suspended") return USER_STATUS_LABELS.suspended;
+  return USER_STATUS_LABELS.active;
 }
 
 export function getPostStatusLabel(post) {
@@ -95,7 +101,11 @@ export function getPostStatusTone(post) {
 }
 
 export function getUserStatusTone(user) {
-  return user && Number(user.deletedAt) > 0 ? "status-resolved" : "status-open";
+  if (!user) return "";
+  if (Number(user.deletedAt) > 0) return "status-resolved";
+  if (user.status === "banned") return "status-danger";
+  if (user.status === "suspended") return "status-warn";
+  return "status-open";
 }
 
 export function getCaseStatusTone(value) {

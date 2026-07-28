@@ -427,6 +427,58 @@ func (s *Server) updateManagedUser(c *gin.Context, targetRole string) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func (s *Server) SuspendAdminUser(c *gin.Context) {
+	userID := strings.TrimSpace(c.Param("id"))
+	var req struct {
+		Days   int    `json:"days"`   // 0 = indefinite
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	now := time.Now().UnixMilli()
+	suspendUntil := int64(0)
+	if req.Days > 0 {
+		suspendUntil = now + int64(req.Days)*24*60*60*1000
+	}
+	result := s.DB.Model(&model.User{}).Where("id = ? AND deleted_at = 0", userID).Updates(map[string]any{
+		"status":        model.UserStatusSuspended,
+		"suspended_at":  now,
+		"suspend_until": suspendUntil,
+		"updated_at":    now,
+	})
+	if result.Error != nil {
+		fail(c, http.StatusInternalServerError, "SUSPEND_FAILED", result.Error.Error())
+		return
+	}
+	if result.RowsAffected == 0 {
+		fail(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (s *Server) UnsuspendAdminUser(c *gin.Context) {
+	userID := strings.TrimSpace(c.Param("id"))
+	now := time.Now().UnixMilli()
+	result := s.DB.Model(&model.User{}).Where("id = ? AND deleted_at = 0", userID).Updates(map[string]any{
+		"status":        model.UserStatusActive,
+		"suspended_at":  0,
+		"suspend_until": 0,
+		"updated_at":    now,
+	})
+	if result.Error != nil {
+		fail(c, http.StatusInternalServerError, "UNSUSPEND_FAILED", result.Error.Error())
+		return
+	}
+	if result.RowsAffected == 0 {
+		fail(c, http.StatusNotFound, "USER_NOT_FOUND", "user not found")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (s *Server) softDeleteManagedUser(c *gin.Context, targetRole string) {
 	userID := strings.TrimSpace(c.Param("id"))
 	adminUserID := mustUserID(c)

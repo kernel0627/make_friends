@@ -161,6 +161,8 @@ func NewRouterWithServer(s *Server) *gin.Engine {
 				admin.DELETE("/users/:id", s.DeleteAdminUser)
 				admin.POST("/users/:id/restore", s.RestoreAdminUser)
 				admin.POST("/users/:id/reset-password", s.ResetAdminUserPassword)
+				admin.POST("/users/:id/suspend", s.SuspendAdminUser)
+				admin.POST("/users/:id/unsuspend", s.UnsuspendAdminUser)
 				admin.GET("/users/:id/credit-ledger", s.GetAdminUserCreditLedger)
 				admin.POST("/users/:id/credit-adjust", s.AdminAdjustUserCredit)
 				admin.GET("/posts", s.ListAdminPosts)

@@ -653,6 +653,16 @@ textarea {
   color: #1a5c8a;
 }
 
+.status-danger {
+  background: #fff3f1;
+  color: #992d1d;
+}
+
+.status-warn {
+  background: #fff9ef;
+  color: #92400e;
+}
+
 .status-completed {
   background: #eff8f2;
   color: #197348;
@@ -800,6 +810,22 @@ textarea {
 }
 
 .danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.warn-button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #f59e0b;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.warn-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

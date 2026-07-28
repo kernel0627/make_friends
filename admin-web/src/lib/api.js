@@ -120,6 +120,17 @@ export function restoreAdminUser(id) {
   return apiRequest(`/api/v1/admin/users/${id}/restore`, { method: "POST" });
 }
 
+export function suspendAdminUser(id, body) {
+  return apiRequest(`/api/v1/admin/users/${id}/suspend`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function unsuspendAdminUser(id) {
+  return apiRequest(`/api/v1/admin/users/${id}/unsuspend`, { method: "POST", body: "{}" });
+}
+
 export function resetAdminUserPassword(id, body) {
   return apiRequest(`/api/v1/admin/users/${id}/reset-password`, {
     method: "POST",
