@@ -109,6 +109,16 @@ function DecisionCard({ decision, onApprove, onReject, loading: actionLoading })
         </details>
       ) : null}
 
+      {!isPending && decision.approvedBy ? (
+        <div className="decision-card__reviewed">
+          <span className="muted-text">
+            {decision.status === "rejected" ? "驳回" : "批准"}：
+            {decision.approvedBy === "system:auto-approve" ? "系统自动审批" : decision.approvedBy}
+            {decision.approvedAt ? ` · ${new Date(decision.approvedAt).toLocaleString("zh-CN")}` : ""}
+          </span>
+        </div>
+      ) : null}
+
       {isPending ? (
         <div className="decision-card__buttons">
           <button className="primary-button" disabled={actionLoading} onClick={onApprove}>
