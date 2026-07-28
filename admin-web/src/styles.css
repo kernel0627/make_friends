@@ -271,6 +271,11 @@ textarea {
   border-color: #ffe1a8;
 }
 
+.stat-card-success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
 .stat-card-label {
   font-size: 13px;
   color: #6b778c;
@@ -281,6 +286,19 @@ textarea {
   font-size: 30px;
   font-weight: 800;
   color: #172338;
+}
+
+.agent-stats-section {
+  margin-top: 16px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+.agent-stats-section .detail-label {
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .dashboard-chart-grid {

@@ -63,7 +63,9 @@ export default function DashboardPage() {
 
         <div className="stats-grid stats-grid-spacious">
           <StatCard label="待处理案例" value={stats.openCases ?? "-"} tone="danger" />
-          <StatCard label="处理中案例" value={stats.inReviewCases ?? "-"} tone="warn" />
+          <StatCard label="调查中" value={stats.investigatingCases ?? "-"} tone="warn" />
+          <StatCard label="待审批" value={stats.underReviewCases ?? "-"} tone="warn" />
+          <StatCard label="处理中案例" value={stats.inReviewCases ?? "-"} />
           <StatCard label="争议履约" value={stats.disputedSettlements ?? "-"} tone="warn" />
           <StatCard label="待完成评价" value={stats.pendingReviews ?? "-"} />
           <StatCard label="近 7 天信誉流水" value={stats.recentCreditDeltas ?? "-"} />
@@ -71,6 +73,20 @@ export default function DashboardPage() {
           <StatCard label="总活动数" value={stats.totalPosts ?? "-"} />
           <StatCard label="已关闭活动" value={stats.closedPosts ?? "-"} />
         </div>
+
+        {stats.agent ? (
+          <div className="detail-block agent-stats-section">
+            <div className="detail-label">Agent 调查统计</div>
+            <div className="stats-grid">
+              <StatCard label="总调查数" value={stats.agent.totalRuns ?? 0} />
+              <StatCard label="成功率" value={stats.agent.successRate != null ? `${stats.agent.successRate.toFixed(1)}%` : "-"} tone={stats.agent.successRate >= 80 ? "success" : "warn"} />
+              <StatCard label="平均耗时" value={stats.agent.avgDurationMs ? `${(stats.agent.avgDurationMs / 1000).toFixed(1)}s` : "-"} />
+              <StatCard label="失败数" value={stats.agent.failedRuns ?? 0} tone={stats.agent.failedRuns > 0 ? "danger" : undefined} />
+              <StatCard label="自动审批率" value={stats.agent.autoApproveRate != null ? `${stats.agent.autoApproveRate.toFixed(1)}%` : "-"} />
+              <StatCard label="总决策数" value={stats.agent.totalDecisions ?? 0} />
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <div className="dashboard-chart-grid">
