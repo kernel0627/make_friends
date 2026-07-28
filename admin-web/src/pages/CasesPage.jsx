@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import PaginationBar from "../components/PaginationBar";
 import Modal from "../components/Modal";
 import { fetchAdminCaseDetail, fetchAdminCases, resolveAdminCase, investigateCase, reviewCaseDecision, fetchAgentRun } from "../lib/api";
@@ -208,6 +208,21 @@ export default function CasesPage() {
   const [resolveForm, setResolveForm] = useState({ resolution: "completed", note: "" });
   const [actionLoading, setActionLoading] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
+
+  // Auto-refresh detail when case is under investigation
+  const pollRef = useRef(null);
+  useEffect(() => {
+    const isInvestigating = detail?.case?.status === "investigating" ||
+      (detail?.agentRun && (detail.agentRun.status === "pending" || detail.agentRun.status === "running"));
+    if (isInvestigating && detail?.case?.id) {
+      pollRef.current = setInterval(() => {
+        fetchAdminCaseDetail(detail.case.id)
+          .then(setDetail)
+          .catch(() => {}); // silently ignore poll errors
+      }, 5000);
+    }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [detail?.case?.id, detail?.case?.status, detail?.agentRun?.status]);
 
   async function openDetail(id) {
     try {
