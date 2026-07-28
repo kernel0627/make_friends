@@ -1,5 +1,5 @@
 const { ensurePageLogin, loginWithWechat, gotoLoginPage, gotoRegisterPage } = require('../../utils/auth')
-const { getCreditLedger, getUserHome } = require('../../utils/postApi')
+const { getCreditLedger, getUserHome, appealCreditLedger } = require('../../utils/postApi')
 
 function formatTime(ts) {
   const value = Number(ts || 0)
@@ -92,5 +92,22 @@ Page({
   onRegister() {
     this.setData({ showLoginModal: false })
     gotoRegisterPage()
+  },
+
+  onAppealTap(e) {
+    const ledgerId = e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.id
+    if (!ledgerId) return
+    wx.showModal({
+      title: '申诉扣分',
+      content: '请简要说明你的申诉原因',
+      editable: true,
+      placeholderText: '申诉原因',
+      success: (res) => {
+        if (!res.confirm || !res.content || !res.content.trim()) return
+        appealCreditLedger(ledgerId, { description: res.content.trim() })
+          .then(() => wx.showToast({ title: '申诉已提交', icon: 'success' }))
+          .catch((err) => wx.showToast({ title: (err && err.message) || '申诉失败', icon: 'none' }))
+      },
+    })
   },
 })

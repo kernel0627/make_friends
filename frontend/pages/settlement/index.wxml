@@ -14,6 +14,14 @@
     <view class="settlement-hero__meta" wx:if="{{reviewDeadlineText}}">评分截止：{{reviewDeadlineText}}</view>
   </view>
 
+  <view wx:if="{{hasDisputedItems}}" class="surface-card section-block dispute-notice">
+    <view class="dispute-notice__icon">⚠️</view>
+    <view class="dispute-notice__body">
+      <view class="dispute-notice__title">存在纠纷待处理</view>
+      <view class="dispute-notice__desc">部分成员反馈活动异常，纠纷已提交管理员处理，请等待处理结果。处理完成后系统会自动更新状态。</view>
+    </view>
+  </view>
+
   <view wx:if="{{loading}}" class="empty-state surface-card section-block">
     <view class="empty-state__icon">...</view>
     <view class="empty-state__title">正在加载履约信息</view>

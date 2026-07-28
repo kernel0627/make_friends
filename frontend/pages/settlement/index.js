@@ -104,6 +104,7 @@ Page({
     primaryActionText: '确认当前成员',
     reviewTargets: [],
     noteText: '',
+    hasDisputedItems: false,
     loading: false,
     submitting: false,
     showDecisionSheet: false,
@@ -196,11 +197,14 @@ Page({
         const selectedUserId = currentItem && currentItem.user ? currentItem.user.id : ''
         const meta = selectionMeta(selectedUserIds, currentItem)
 
+        var hasDisputedItems = normalizedItems.some(function(it) { return it.finalStatus === 'disputed' })
+
         this.setData({
           postTitle: res.postTitle || this.data.postTitle,
           viewerIsAuthor: !!res.viewerIsAuthor,
           projectCancelled: !!res.projectCancelled,
           canCancelAll: !!res.canCancelAll,
+          hasDisputedItems: hasDisputedItems,
           stage: res.stage || 'done',
           flowLabel: res.flowLabel || '',
           flowLabelLines: splitFlowLabel(res.flowLabel || ''),

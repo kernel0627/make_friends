@@ -83,3 +83,19 @@
 .ledger-delta--down {
   color: #e5484d;
 }
+
+.ledger-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 4rpx;
+}
+
+.ledger-appeal {
+  font-size: 22rpx;
+  color: #255ad6;
+  padding: 4rpx 12rpx;
+  border: 1rpx solid #c5d4f5;
+  border-radius: 8rpx;
+}

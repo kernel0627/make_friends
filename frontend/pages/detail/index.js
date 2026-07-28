@@ -2,6 +2,9 @@ const { openPage } = require('../../utils/navigation')
 const {
   getPostDetail,
   getSettlement,
+  getPostModeration,
+  reportPost,
+  appealModeration,
   joinPost,
   closePost,
 } = require('../../utils/postApi')
@@ -100,6 +103,14 @@ function buildStatusMeta(post, settlementInfo, isAuthor, isFull) {
   if (!post) {
     return { text: '加载中', tone: 'gray' }
   }
+  // Moderation status takes priority over business status
+  if (post.moderationStatus && post.moderationStatus !== 'approved') {
+    if (post.moderationStatus === 'pending') return { text: '审核中', tone: 'orange' }
+    if (post.moderationStatus === 'rejected') return { text: '已下架', tone: 'red' }
+    if (post.moderationStatus === 'needs_revision') return { text: '待整改', tone: 'orange' }
+    if (post.moderationStatus === 'manual_review') return { text: '人工审核中', tone: 'orange' }
+    return { text: '审核中', tone: 'orange' }
+  }
   if (settlementInfo && settlementInfo.projectCancelled) {
     return { text: isAuthor ? '项目已取消' : '活动已取消', tone: 'red' }
   }
@@ -142,6 +153,13 @@ Page({
     showJoinedBadge: false,
     showFullBadge: false,
     showLoginFlowButton: false,
+    // Moderation
+    moderationBlocked: false,
+    moderationReason: '',
+    moderationRecordId: '',
+    showAppealForm: false,
+    appealText: '',
+    appealSubmitting: false,
   },
 
   onLoad(options) {
@@ -195,13 +213,19 @@ Page({
         return { settlementInfo: null }
       })
       .then(({ settlementInfo }) => {
-        const actionState = this.buildActionState(this.data.post, settlementInfo)
-        const statusMeta = buildStatusMeta(this.data.post, settlementInfo, this.data.isAuthor, this.data.isFull)
+        const post = this.data.post
+        const actionState = this.buildActionState(post, settlementInfo)
+        const statusMeta = buildStatusMeta(post, settlementInfo, this.data.isAuthor, this.data.isFull)
+
+        // Moderation state
+        const moderationBlocked = !!(post && post.moderationStatus && post.moderationStatus !== 'approved')
+
         this.setData({
           settlementInfo,
           statusMeta,
-          closedSummary: buildClosedSummary(this.data.post),
-          flowSummaryText: buildFlowSummary(this.data.post, settlementInfo, this.data.isAuthor, this.data.joined),
+          moderationBlocked,
+          closedSummary: buildClosedSummary(post),
+          flowSummaryText: buildFlowSummary(post, settlementInfo, this.data.isAuthor, this.data.joined),
           flowButtonText: actionState.flowButtonText,
           showFlowButton: actionState.showFlowButton,
           showChatButton: actionState.showChatButton,
@@ -211,6 +235,21 @@ Page({
           showLoginFlowButton: actionState.showLoginFlowButton,
           loading: false,
         })
+
+        // If moderation blocked and author, fetch moderation detail for reason
+        if (moderationBlocked && this.data.isAuthor && this.currentUser()) {
+          getPostModeration(this.data.postId)
+            .then((res) => {
+              const record = res && res.moderation
+              if (record) {
+                this.setData({
+                  moderationReason: record.decisionReason || '',
+                  moderationRecordId: record.id || '',
+                })
+              }
+            })
+            .catch(() => { /* ignore — non-critical */ })
+        }
 
         if (this.currentUser() && this.data.resumeAction && !this._resumeHandled) {
           this._resumeHandled = true
@@ -369,6 +408,15 @@ Page({
 
     if (!post) return actionState
 
+    // If post is not approved by moderation, disable all major actions
+    if (post.moderationStatus && post.moderationStatus !== 'approved') {
+      // Author can still see chat and edit (edit button handled in wxml)
+      if (isAuthor) {
+        actionState.showChatButton = true
+      }
+      return actionState
+    }
+
     if (isAuthor) {
       actionState.showChatButton = true
       if (post.status === 'closed' && settlementInfo && !settlementInfo.projectCancelled) {
@@ -420,6 +468,56 @@ Page({
     const post = this.data.post
     if (!post) return
     openPage('/pages/edit/index?id=' + encodeURIComponent(post.id))
+  },
+
+  onReportTap() {
+    if (!this.currentUser()) {
+      this.openAuthModal('')
+      return
+    }
+    const post = this.data.post
+    if (!post) return
+    wx.showActionSheet({
+      itemList: ['内容不当', '虚假信息', '商业推广', '骚扰/攻击', '其他'],
+      success: (res) => {
+        const reasons = ['inappropriate_content', 'false_info', 'commercial', 'harassment', 'other']
+        const reason = reasons[res.tapIndex] || 'other'
+        reportPost(post.id, { description: reason })
+          .then(() => wx.showToast({ title: '举报已提交', icon: 'success' }))
+          .catch((err) => wx.showToast({ title: (err && err.message) || '举报失败', icon: 'none' }))
+      },
+    })
+  },
+
+  onAppealTap() {
+    this.setData({ showAppealForm: true })
+  },
+
+  onAppealCancel() {
+    this.setData({ showAppealForm: false, appealText: '' })
+  },
+
+  onAppealInput(e) {
+    this.setData({ appealText: (e && e.detail && e.detail.value) || '' })
+  },
+
+  onAppealSubmit() {
+    const recordId = this.data.moderationRecordId
+    const text = (this.data.appealText || '').trim()
+    if (!recordId || !text) {
+      wx.showToast({ title: '请填写申诉原因', icon: 'none' })
+      return
+    }
+    this.setData({ appealSubmitting: true })
+    appealModeration(recordId, { description: text })
+      .then(() => {
+        wx.showToast({ title: '申诉已提交', icon: 'success' })
+        this.setData({ showAppealForm: false, appealText: '', appealSubmitting: false })
+      })
+      .catch((err) => {
+        this.setData({ appealSubmitting: false })
+        wx.showToast({ title: (err && err.message) || '申诉失败', icon: 'none' })
+      })
   },
 
   onAuthorTap() {
