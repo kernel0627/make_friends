@@ -1,0 +1,61 @@
+id: behavior_harassment
+version: "1.0"
+name: 骚扰行为判定规则
+description: 判断用户线下或线上是否存在骚扰行为
+
+# 构成骚扰的行为
+violations:
+  - 活动中对他人进行肢体接触且对方明确表示不适
+  - 在聊天中持续发送对方不愿接收的消息（对方已表示拒绝或不回复超过 3 条）
+  - 对他人外貌、身体、性别进行贬损或带有性暗示的评论
+  - 活动结束后通过站外渠道（微信、电话）持续联系对方，对方已表示拒绝
+  - 跟踪行为（未经同意跟随对方离开活动场所）
+  - 散布他人个人信息（照片、联系方式）未经本人同意
+
+# 不构成骚扰
+defenses:
+  - 正常社交互动中的意见分歧
+  - 双方互相调侃但无一方明确表示不适
+  - 活动中正常的肢体接触（如运动中的碰撞、合影时的并肩）
+  - 对方未表示拒绝的正常聊天
+
+# 判定难点
+edge_cases:
+  - 单方说法 vs 单方说法：需要旁证或聊天记录佐证
+  - 文化差异：某些行为在不同文化背景下解读不同，以被举报方是否被告知为准
+  - 时间间隔：举报发生在事件 7 天以后的，需要更强证据
+  - 反复举报同一人：如果多人独立举报，可信度显著提高
+
+# 证据强度
+evidence_strength:
+  strong:
+    - 多名参与者独立举报同一行为
+    - 聊天记录中有明确的拒绝 + 对方继续发送的记录
+    - 活动中其他人的证词（通过结算评价或聊天反馈）
+  medium:
+    - 单人举报但描述具体、前后一致
+    - 有相关聊天记录片段
+    - 被举报者有类似历史记录
+  weak:
+    - 仅口头描述无佐证
+    - 事件发生很久后才举报
+    - 描述含糊或前后矛盾
+
+# 历史记录使用规则
+history_usage:
+  可以用于: 评估行为模式、判定处罚力度、决定是否封禁
+  不可用于: 直接推断本次事实
+
+# 证据标准
+evidence_standard:
+  required: 举报者陈述 + 时间地点
+  strongly_recommended: 聊天记录 / 第三方证词
+  supporting: 被举报者历史记录、领域事件
+
+# 处置
+actions:
+  confirmed_severe: penalty_credit(-30), suspend_user(7d), notify_victim
+  confirmed_mild: penalty_credit(-15), warn_user
+  pattern_detected: penalty_credit(-20), restrict_join(30d)
+  insufficient_evidence: escalate_to_admin
+  false_report: warn_reporter, no_penalty_to_accused

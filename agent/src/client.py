@@ -106,7 +106,8 @@ class BackendClient:
             valid_ids = [
                 "content_commercial", "content_off_platform",
                 "settlement_no_show", "settlement_material_change",
-                "credit_reversal",
+                "settlement_cancellation", "behavior_harassment",
+                "identity_fake", "credit_reversal",
             ]
             raise ValueError(
                 f"政策 '{policy_id}' 不存在。可用的 policy_id: {', '.join(valid_ids)}"
